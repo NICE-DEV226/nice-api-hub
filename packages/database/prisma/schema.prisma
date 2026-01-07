@@ -1,0 +1,208 @@
+// NICE-API'HUB Database Schema
+// Author: NICE-DEV
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// Note: DATABASE_URL doit être défini dans apps/api/.env
+
+// ==================== USERS ====================
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  googleId      String    @unique
+  email         String    @unique
+  name          String
+  avatar        String?
+  role          Role      @default(USER)
+  plan          Plan      @default(FREE)
+  isActive      Boolean   @default(true)
+  
+  // Subscription (agnostic - works with any payment provider)
+  subscription  Subscription?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime  @default(now())
+  
+  // Relations
+  apiKeys       ApiKey[]
+  apiUsage      ApiUsage[]
+  
+  @@map("users")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Plan {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+// ==================== SUBSCRIPTION (Agnostic) ====================
+model Subscription {
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId                String    @unique @db.ObjectId
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Provider agnostic fields
+  provider              String?   // "stripe", "paypal", "paddle", etc.
+  providerCustomerId    String?   // Customer ID from provider
+  providerSubscriptionId String?  // Subscription ID from provider
+  providerPriceId       String?   // Price/Plan ID from provider
+  
+  status                SubscriptionStatus @default(INACTIVE)
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean   @default(false)
+  
+  // Metadata for any provider-specific data
+  metadata              Json?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+}
+
+// ==================== API KEYS ====================
+model ApiKey {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String      @db.ObjectId
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name          String
+  key           String      @unique  // Hashed key
+  keyPreview    String               // "nicedev_live_abc1...xyz9" (for display)
+  environment   Environment @default(DEVELOPMENT)
+  isActive      Boolean     @default(true)
+  
+  // Permissions - empty array means all platforms allowed
+  permissions   String[]    @default([])
+  
+  // Rate Limits (overrides plan defaults if set)
+  customRateLimit RateLimit?
+  
+  createdAt     DateTime    @default(now())
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  
+  // Relations
+  apiUsage      ApiUsage[]
+  
+  @@map("api_keys")
+}
+
+enum Environment {
+  DEVELOPMENT
+  PRODUCTION
+}
+
+type RateLimit {
+  requestsPerMinute Int?
+  requestsPerHour   Int?
+  requestsPerDay    Int?
+}
+
+// ==================== API USAGE (Analytics & Logs) ====================
+model ApiUsage {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  apiKeyId      String    @db.ObjectId
+  apiKey        ApiKey    @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  userId        String    @db.ObjectId
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Request info
+  endpoint      String    // "/api/tiktok/download"
+  platform      String    // "tiktok"
+  method        String    // "GET"
+  statusCode    Int       // 200, 400, 500
+  
+  // Latency tracking (professional approach)
+  totalLatency          Int   // Total request time (ms)
+  externalServiceLatency Int? // Time waiting for external API (ms)
+  internalLatency       Int?  // Our processing time (ms)
+  
+  // Request metadata
+  ipAddress     String?
+  userAgent     String?
+  country       String?
+  
+  // Error tracking
+  isError       Boolean   @default(false)
+  errorMessage  String?
+  errorCode     String?
+  
+  timestamp     DateTime  @default(now())
+  
+  @@index([userId, timestamp])
+  @@index([apiKeyId, timestamp])
+  @@index([endpoint, timestamp])
+  @@index([platform, timestamp])
+  @@map("api_usage")
+}
+
+// ==================== API HEALTH (Monitoring) ====================
+model ApiHealth {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  
+  platform      String    @unique  // "tiktok", "youtube", etc.
+  endpoint      String             // "/api/tiktok/download"
+  
+  // Health status
+  isHealthy     Boolean   @default(true)
+  lastStatus    Int       @default(200)
+  lastError     String?
+  
+  // Performance metrics (rolling averages)
+  avgLatency    Float     @default(0)    // ms
+  p95Latency    Float     @default(0)    // 95th percentile
+  p99Latency    Float     @default(0)    // 99th percentile
+  successRate   Float     @default(100)  // %
+  
+  // Counters (last 24h)
+  totalRequests     Int   @default(0)
+  successfulRequests Int  @default(0)
+  failedRequests    Int   @default(0)
+  
+  lastCheckedAt DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("api_health")
+}
+
+// ==================== RATE LIMIT CONFIG ====================
+model RateLimitConfig {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  
+  plan          Plan      @unique
+  
+  requestsPerMinute Int
+  requestsPerHour   Int
+  requestsPerDay    Int
+  
+  // Burst allowance
+  burstLimit    Int       @default(10)
+  
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("rate_limit_configs")
+}

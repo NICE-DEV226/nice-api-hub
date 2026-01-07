@@ -1,0 +1,103 @@
+# ============================================
+# NICE-API'HUB Docker Compose
+# Author: NICE-DEV
+# ============================================
+# 
+# Usage:
+#   Development: docker-compose up -d
+#   Production:  docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   Logs:        docker-compose logs -f
+#   Stop:        docker-compose down
+#
+# ============================================
+
+version: '3.8'
+
+services:
+  # ==================== Backend API ====================
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: nice-api-hub-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3001
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - API_URL=${API_URL:-http://localhost:3001}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-http://localhost:3001/auth/google/callback}
+      - GENIUSPAY_API_KEY=${GENIUSPAY_API_KEY}
+      - GENIUSPAY_API_SECRET=${GENIUSPAY_API_SECRET}
+      - GENIUSPAY_WEBHOOK_SECRET=${GENIUSPAY_WEBHOOK_SECRET}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - nice-api-hub-network
+
+  # ==================== Frontend (Next.js) ====================
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: nice-api-hub-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - nice-api-hub-network
+
+  # ==================== Redis (Rate Limiting & Caching) ====================
+  redis:
+    image: redis:7-alpine
+    container_name: nice-api-hub-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nice-api-hub-network
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+# ==================== Networks ====================
+networks:
+  nice-api-hub-network:
+    driver: bridge
+
+# ==================== Volumes ====================
+volumes:
+  redis-data:
+    driver: local

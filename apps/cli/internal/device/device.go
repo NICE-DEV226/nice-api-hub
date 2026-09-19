@@ -26,6 +26,9 @@ type Source struct {
 	Run      func(name string, args ...string) ([]byte, error)
 	// MachineGUID reads Windows' HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid.
 	MachineGUID func() (string, error)
+	// Override replaces the machine identifier (from NAH_DEVICE_ID). It exists to simulate other computers while
+	// testing on one machine; it grants nothing a person could not already do by editing their own machine id.
+	Override string
 	// DataDir is where a fallback install id is persisted.
 	DataDir  string
 	Hostname func() (string, error)
@@ -39,6 +42,7 @@ func System(dataDir string) Source {
 		Run:         run,
 		MachineGUID: machineGUID,
 		DataDir:     dataDir,
+		Override:    os.Getenv("NAH_DEVICE_ID"),
 		Hostname:    os.Hostname,
 	}
 }
@@ -65,6 +69,9 @@ var bogus = map[string]bool{
 // Fingerprint returns this machine's hash, using the platform's own machine id and falling back to a random
 // per-installation id (stored once) when the system offers none, as on containers and some BSDs.
 func Fingerprint(s Source) (Result, error) {
+	if strings.TrimSpace(s.Override) != "" {
+		return Result{Hash: hash(s.Override), Method: "override"}, nil
+	}
 	if raw, method := s.rawID(); raw != "" {
 		return Result{Hash: hash(raw), Method: method}, nil
 	}

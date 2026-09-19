@@ -1,13 +1,5 @@
 # NICE-API'HUB
 
-```
-██      ██      ██████      ██      ██
-████    ██    ██      ██    ██      ██
-██  ██  ██    ██████████    ██████████
-██    ████    ██      ██    ██      ██
-██      ██    ██      ██    ██      ██
-```
-
 **Grab media from social platforms, from your terminal or from your own code.**
 
 NICE-API'HUB turns a link (YouTube, TikTok, X, Instagram, Facebook, SoundCloud, Bluesky, Dailymotion, LinkedIn,
@@ -48,6 +40,9 @@ nah
 
 On a computer that has no account, `nah` opens a welcome screen. Pick what fits:
 
+<p align="center"><img src="docs/nah-welcome.png" alt="The welcome screen" width="720"></p>
+
+
 1. **Create my account**: no e-mail, no password. Your computer is your identity. It takes about a second.
    You are shown a **recovery key once**: copy it or save it to a file. It is the only way back if you lose this computer.
 2. **Add this computer to my account**: type the one-time code that `nah link` printed on another computer.
@@ -57,6 +52,8 @@ On a computer that has no account, `nah` opens a welcome screen. Pick what fits:
 The gateway address defaults to `http://localhost:3000`; change it from the welcome screen, with `nah init <url>`, or with
 `NAH_URL`. Afterwards, typing `nah` opens straight on the download screen: paste a link, `Enter`, click the quality you
 want, click again to download. Files go to your Downloads folder and are never overwritten (`clip (2).mp4`).
+
+<p align="center"><img src="docs/download.png" alt="The download screen: pick a quality, click again to download" width="700"></p>
 
 ### Everyday commands
 

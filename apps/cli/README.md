@@ -2,14 +2,6 @@
 
 The command line and terminal interface for [NICE-API'HUB](../../README.md).
 
-```
-██      ██      ██████      ██      ██
-████    ██    ██      ██    ██      ██
-██  ██  ██    ██████████    ██████████
-██    ████    ██      ██    ██      ██
-██      ██    ██      ██    ██      ██
-```
-
 One static binary (Go, no runtime needed), two ways to use it:
 
 - **A full-screen interface**: type `nah`. Tabs, rows and buttons work with the keyboard and the mouse.
@@ -51,6 +43,8 @@ The gateway address defaults to `http://localhost:3000`. Point at another one wi
 
 A computer without an account lands on a welcome screen:
 
+<p align="center"><img src="../../docs/nah-welcome.png" alt="The welcome screen" width="720"></p>
+
 | Choice | What happens |
 |---|---|
 | **Create my account** | Registers this computer, no e-mail, no password (about a second). Shows a **recovery key once**: `c` copies it, `s` saves it to a file, `Enter` continues (it warns you if you did neither). |
@@ -69,6 +63,8 @@ No terminal UI? `nah register`, `nah link`, `nah recover` and `nah login` do the
 
 Open it with `nah` (or `nah tui`). Tabs depend on what this computer can do: **Dashboard** always; **Accounts** with the
 admin token; **Playground** (the download screen) with an API key.
+
+<p align="center"><img src="../../docs/download.png" alt="The download screen: pick a quality, click again to download" width="700"></p>
 
 **With the mouse:** click a tab in the top right; click a row to select it; click the highlighted row again to download it;
 click the buttons under a list; use the wheel to scroll. Hold `Shift` to select text with the mouse (the terminal gives the
@@ -154,6 +150,7 @@ Settings resolve in this order: flag → environment → profile → default.
 | `NAH_PROFILE` | Which profile to use. Several gateways? `nah login --profile staging`, `nah config use staging` |
 | `NAH_CONFIG` | Path of the config file itself |
 | `NAH_CONFIG_DIR` · `NAH_DATA_DIR` · `NAH_DOWNLOAD_DIR` | Override the folders below |
+| `NAH_DEVICE_ID` | Pretend to be another computer (testing): replaces the machine identifier |
 | `NAH_NO_KEYRING` | Skip the system keychain and use the private file (servers, containers, CI) |
 
 | What | Linux | macOS | Windows |

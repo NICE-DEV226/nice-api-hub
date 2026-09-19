@@ -58,6 +58,9 @@ To try the CLI without touching your real setup, isolate it:
 export NAH_CONFIG_DIR=/tmp/nah-dev/cfg NAH_DATA_DIR=/tmp/nah-dev/data NAH_NO_KEYRING=1
 ```
 
+The server allows one active account per computer, so testing registration on your own machine uses up its slot. To act as a
+second computer, set `NAH_DEVICE_ID=laptop-2` (any text; it replaces the machine identifier).
+
 Tests must never touch your real keychain, clipboard, config or network. Use the fakes that are already in the test files.
 
 ## Making a change

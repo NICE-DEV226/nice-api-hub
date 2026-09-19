@@ -97,6 +97,18 @@ const SCOPE_BY_ROUTE: Record<string, Scope> = {
   '/v1/recover': 'recover',
 };
 
+/** Cheap control-plane routes: they must not spend the plan's media rate or daily quota. */
+const CONTROL_ROUTES = new Set([
+  '/v1/account',
+  '/v1/usage',
+  '/v1/jobs/:id',
+  '/v1/keys',
+  '/v1/keys/:id/revoke',
+  '/v1/keys/:id/rotate',
+  '/v1/link',
+  '/v1/recover',
+]);
+
 // ajv-formats is CJS with a callable default export; NodeNext types it as a namespace.
 const addFormats = addFormatsModule as unknown as (ajv: Ajv) => Ajv;
 
@@ -369,7 +381,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
 
       let decision: RateLimitDecision | null = null;
       try {
-        decision = await rateLimiter.check(principal);
+        decision = await rateLimiter.check(principal, new Date(), CONTROL_ROUTES.has(req.routeOptions.url ?? '') ? 'control' : 'media');
       } catch (error) {
         metrics.rateLimiterErrors.inc();
         req.log.error({ err: error }, 'rate limiter unavailable');

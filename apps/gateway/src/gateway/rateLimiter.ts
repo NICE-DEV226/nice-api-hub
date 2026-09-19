@@ -87,6 +87,11 @@ export function secondsUntilUtcMidnight(now: Date): number {
   return Math.ceil((next - now.getTime()) / 1000);
 }
 
+export type RequestCost = 'media' | 'control';
+
+/** Same for every plan: these calls are cheap, this only stops a runaway loop. */
+export const CONTROL_LIMITS = { rps: 5, burst: 60, dailyQuota: null } as const;
+
 export class RateLimiter {
   private readonly redis: RedisWithLimiter;
 
@@ -97,14 +102,20 @@ export class RateLimiter {
     this.redis = redis as RedisWithLimiter;
   }
 
-  async check(principal: Principal, now = new Date()): Promise<RateLimitDecision> {
-    const { rps, burst, dailyQuota } = principal.limits;
+  /**
+   * `media` requests spend the plan's rate and daily quota. `control` requests (reading your account, listing
+   * keys, polling a job) draw on a separate, generous bucket and never touch the daily quota: a UI that
+   * refreshes its screen must not be able to use up the downloads you paid for, and nothing here is expensive.
+   */
+  async check(principal: Principal, now = new Date(), cost: RequestCost = 'media'): Promise<RateLimitDecision> {
+    const control = cost === 'control';
+    const { rps, burst, dailyQuota } = control ? CONTROL_LIMITS : principal.limits;
     const interval = 1000 / rps;
     const ttl = secondsUntilUtcMidnight(now) + 60;
 
     const [allowed, reason, retryMs, remaining, resetMs, dailyRemaining] =
       await this.redis.nahRateLimit(
-        `rl:${principal.accountId}`,
+        control ? `rlc:${principal.accountId}` : `rl:${principal.accountId}`,
         `qd:${principal.accountId}:${utcDay(now)}`,
         interval,
         burst,

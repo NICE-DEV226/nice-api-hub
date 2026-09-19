@@ -209,6 +209,17 @@ describe.skipIf(!hasInfra)('gateway API (Postgres + Redis, fake providers)', () 
       expect(denied.headers['x-quota-remaining']).toBe('0');
     });
 
+    it('reading your account or keys never spends the media budget (a refreshing UI must not eat downloads)', async () => {
+      await admin('PUT', '/plans/scarce', { name: 'Scarce', rps: 0.01, burst: 1, dailyQuota: 1, maxKeys: 5, platforms: null });
+      const { key } = await issueKey(await account('scarce'));
+      for (let i = 0; i < 10; i++) {
+        expect((await call(key, '/v1/account')).statusCode).toBe(200);
+        expect((await call(key, '/v1/usage')).statusCode).toBe(200);
+      }
+      expect((await media(key)).statusCode).toBe(200); // the single allowed download is still there
+      expect((await media(key)).statusCode).toBe(429);
+    });
+
     it('rate-limits bursts per account and recovers', async () => {
       await admin('PUT', '/plans/bursty', { name: 'Bursty', rps: 20, burst: 2, dailyQuota: null, maxKeys: 5, platforms: null });
       const { key } = await issueKey(await account('bursty'));

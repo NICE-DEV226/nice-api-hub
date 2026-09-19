@@ -36,6 +36,16 @@ export function makeVariant(input: {
   quality?: string | undefined;
   ext?: string | undefined;
   hasAudio?: boolean | undefined;
+  width?: number | undefined;
+  height?: number | undefined;
+  protocol?: 'direct' | 'hls' | undefined;
+  mime?: string | undefined;
+  id?: string | undefined;
+  codec?: string | undefined;
+  fps?: number | undefined;
+  bitrateKbps?: number | undefined;
+  sizeBytes?: number | undefined;
+  headers?: Record<string, string> | undefined;
 }): Variant | null {
   if (!input.url) return null;
   const variant: Variant = { kind: input.kind, url: input.url };
@@ -46,6 +56,16 @@ export function makeVariant(input: {
     const mime = mimeFor(input.ext);
     if (mime) variant.mime = mime;
   }
+  if (input.mime) variant.mime = input.mime;
   if (input.hasAudio !== undefined) variant.hasAudio = input.hasAudio;
+  if (input.width) variant.width = input.width;
+  if (input.height) variant.height = input.height;
+  if (input.protocol) variant.protocol = input.protocol;
+  if (input.id) variant.id = input.id;
+  if (input.codec) variant.codec = input.codec;
+  if (input.fps) variant.fps = input.fps;
+  if (input.bitrateKbps) variant.bitrateKbps = Math.round(input.bitrateKbps);
+  if (input.sizeBytes) variant.sizeBytes = Math.round(input.sizeBytes);
+  if (input.headers && Object.keys(input.headers).length > 0) variant.headers = input.headers;
   return variant;
 }

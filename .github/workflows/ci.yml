@@ -27,6 +27,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --workspace=@nice-api-hub/gateway
+      - run: ffmpeg -version | head -1   # preinstalled on the runner; the download tests use it
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
@@ -35,3 +36,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f apps/gateway/Dockerfile -t nice-api-hub:ci .
+      - run: docker run --rm --entrypoint sh nice-api-hub:ci -c 'yt-dlp --version && ffmpeg -version | head -1 && node -v'

@@ -1,0 +1,26 @@
+{
+ "thread": {
+  "post": {
+   "uri": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3mk4lzkrnk22d",
+   "author": {
+    "did": "did:plc:z72i7hdynmk6r22z27h6tvur",
+    "handle": "bsky.app",
+    "displayName": "Bluesky"
+   },
+   "record": {
+    "text": "v1.121 is live!\n\nWe've increased the quality of photos in posts by doubling the max file size to 2MB and the resolution limit to 4000x4000. \n\nPlus, posts with multiple photos now appear in a carousel so you can show off your photography in all its glory."
+   },
+   "embed": {
+    "cid": "bafkreifhuv36ji7vcq3tmdjltceyrfaat6vdccn2pklxf7j7dgsobdlgbm",
+    "playlist": "https://video.bsky.app/watch/did%3Aplc%3Az72i7hdynmk6r22z27h6tvur/bafkreifhuv36ji7vcq3tmdjltceyrfaat6vdccn2pklxf7j7dgsobdlgbm/playlist.m3u8",
+    "thumbnail": "https://video.bsky.app/watch/did%3Aplc%3Az72i7hdynmk6r22z27h6tvur/bafkreifhuv36ji7vcq3tmdjltceyrfaat6vdccn2pklxf7j7dgsobdlgbm/thumbnail.jpg",
+    "aspectRatio": {
+     "height": 800,
+     "width": 381
+    },
+    "presentation": "gif",
+    "$type": "app.bsky.embed.video#view"
+   }
+  }
+ }
+}

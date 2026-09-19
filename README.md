@@ -13,12 +13,12 @@ Authorization: Bearer nah_live_…
   "data": {
     "platform": "tiktok",
     "sourceUrl": "https://www.tiktok.com/@user/video/123",
-    "title": "…", "author": null, "thumbnail": "https://…", "durationSeconds": null,
+    "title": "…", "author": "BBC News", "thumbnail": "https://…", "durationSeconds": 32,
     "variants": [
       { "kind": "video", "quality": "hd", "ext": "mp4", "mime": "video/mp4", "hasAudio": true, "url": "https://…" },
       { "kind": "audio", "ext": "mp3", "mime": "audio/mpeg", "url": "https://…" }
     ],
-    "provider": "tikdownloader",
+    "provider": "tikwm",
     "fetchedAt": "2026-09-19T15:00:00.000Z"
   },
   "meta": { "requestId": "…", "cached": false, "tookMs": 812 }
@@ -62,6 +62,9 @@ Design decisions worth knowing:
 
 ## Quick start
 
+Prerequisites: Docker with the **buildx** plugin (on Arch: `sudo pacman -S docker-buildx`; without it BuildKit refuses
+to build), and your user in the `docker` group.
+
 ```bash
 cp apps/gateway/.env.example .env      # fill KEY_PEPPER, ADMIN_TOKEN, POSTGRES_PASSWORD (openssl rand -base64 48)
 docker compose up -d --build           # postgres, redis, migrate (one-shot), api, worker
@@ -85,6 +88,9 @@ ports (prints the env to export), then `npm run cli -w @nice-api-hub/gateway -- 
 | Endpoint | Auth | Purpose |
 |---|---|---|
 | `GET /v1/media?url=` | API key | Resolve media (platform auto-detected) |
+| `POST /v1/jobs` · `GET /v1/jobs/:id` | API key | Queue an extraction; get the result by polling or by signed webhook |
+| `GET /v1/account` | API key | Your plan, limits and webhook secret |
+| `GET /v1/download?url=&kind=&maxHeight=&audioFormat=` | API key | Stream the media as ONE playable file (merges video+audio, extracts MP3) |
 | `GET /v1/usage?days=` | API key | Your plan limits and recent usage |
 | `GET /v1/platforms` | none | Supported platforms + live status (`operational`/`degraded`/`down`/`unknown`) |
 | `/admin/v1/*` | admin token | Plans, accounts, keys (create / revoke / rotate with grace period), usage, audit |
@@ -112,7 +118,7 @@ Default plans (editable via `PUT /admin/v1/plans/:id`):
 
 1. Platform (host allowlist + canonicalisation): `apps/gateway/src/providers/platforms.ts`.
 2. Provider: implement `Provider` (`fetch(ctx) → MediaDraft`, throw `ProviderError` with the right `kind`)
-   in `providers/impl/`, register it in `DEFAULT_PROVIDERS` (`http/app.ts`).
+   in `providers/impl/`, register it in `buildDefaultProviders` (`http/app.ts`).
    Several providers per platform give you failover for free; `priority` decides the order.
 3. Put the HTML/JSON → model mapping in a pure `parse…` function and unit-test it against a captured fixture.
 4. Add a known-good URL to `PROBE_URLS` so its health shows up in `/v1/platforms`.
@@ -139,21 +145,132 @@ Tests run against real Postgres and Redis (no mocks for the data plane): atomic 
 concurrency, cache invalidation on revoke/plan change, quota sharing across keys, failover,
 fail-open/closed behaviour with Redis down.
 
+## Downloads (`GET /v1/download`)
+
+`/v1/media` returns links. For YouTube those links are not enough, for two reasons found while testing on the
+real service: YouTube no longer serves combined audio+video files (0 of 53 formats), and its links are bound to the
+IP that requested them. `/v1/download` solves both: the gateway fetches the renditions itself, merges them with
+ffmpeg and streams **one file** back.
+
+```bash
+# best MP4 up to 720p, video and audio merged
+curl -H "Authorization: Bearer $KEY" -o clip.mp4 \
+  "https://api.example.com/v1/download?url=https://www.youtube.com/watch?v=aqz-KE-bpKQ&maxHeight=720"
+# audio only, as MP3
+curl -H "Authorization: Bearer $KEY" -o song.mp3 \
+  "https://api.example.com/v1/download?url=…&kind=audio&audioFormat=mp3"
+```
+
+Measured against the real services (YouTube, 10 min 35 s video at 360p, from a home connection):
+extraction 11 s, then 28.5 MB downloaded, merged and streamed in about 30 s. The gateway downloads in 8 MiB `Range`
+chunks because CDNs throttle a single long GET to playback speed (measured: 57 KB/s for one GET vs 5.7 MB/s per
+ranged request; the first implementation took 280 s for 540 s of video).
+
+Guard rails: SSRF check on every media URL and redirect hop (private, loopback and link-local addresses refused),
+ffmpeg locked to a per-input protocol whitelist, a cap on concurrent transfers (`503` + `Retry-After`), a hard time
+limit and a size limit, and cleanup of ffmpeg when the client disconnects. There are no `Range` requests on the
+response and no resume; each transfer costs bandwidth and CPU, so size `DOWNLOAD_MAX_CONCURRENCY` accordingly.
+
+## Asynchronous jobs (`POST /v1/jobs`)
+
+Extraction takes 8 to 17 s with yt-dlp, which is too long to hold a request open. Submit a job, get `202` at once,
+then poll or receive a webhook.
+
+```bash
+curl -X POST https://api.example.com/v1/jobs -H "Authorization: Bearer $KEY" \
+  -H "Idempotency-Key: order-42" -H 'content-type: application/json' \
+  -d '{"url":"https://www.youtube.com/watch?v=aqz-KE-bpKQ","webhookUrl":"https://your.app/hooks/nah"}'
+# 202 {"data":{"id":"job_…","status":"queued",…}}   Location: /v1/jobs/job_…
+curl -H "Authorization: Bearer $KEY" https://api.example.com/v1/jobs/job_…
+```
+
+A job goes `queued → running → succeeded | failed`. On success `result` is the same object `/v1/media` returns; on failure
+`error` has the same stable `code`s as the synchronous API. Jobs and results are kept for `JOBS_TTL_SECONDS` (24 h).
+
+- **Idempotency**: repeat a submission with the same `Idempotency-Key` and you get the original job back
+  (`Idempotent-Replayed: true`), so retrying a timed-out `POST` never creates duplicates.
+- **Backpressure**: at most `JOBS_MAX_PENDING_PER_ACCOUNT` unfinished jobs per account, then `429 too_many_jobs`.
+- **Isolation**: another account's job is indistinguishable from a missing one (404).
+- **Webhooks** carry `{"event":"job.completed"|"job.failed","data":<job>}` and are signed. Get your secret from
+  `GET /v1/account` (operators can rotate it with `POST /admin/v1/accounts/:id/webhook-secret/rotate`).
+  `X-NAH-Signature: t=<unix seconds>,v1=<hex>` where `v1 = HMAC_SHA256(secret, "<t>.<raw body>")`. Verify against the RAW body,
+  compare in constant time, and reject timestamps older than 5 minutes:
+
+  ```js
+  import { createHmac, timingSafeEqual } from 'node:crypto';
+  function verify(secret, header, rawBody, toleranceSec = 300) {
+    const { t, v1 } = Object.fromEntries(header.split(',').map((p) => p.split('=')));
+    if (Math.abs(Date.now() / 1000 - Number(t)) > toleranceSec) return false;
+    const mac = createHmac('sha256', secret).update(`${t}.${rawBody}`).digest();
+    const got = Buffer.from(v1 ?? '', 'hex');
+    return got.length === mac.length && timingSafeEqual(got, mac);
+  }
+  ```
+
+  Failed deliveries are retried with backoff (default: immediately, 30 s, 2 min, 10 min, 1 h; `JOBS_WEBHOOK_BACKOFF_MS`).
+  Each attempt has its own `X-NAH-Delivery` id. Delivery is **at-least-once**: make your receiver idempotent (dedupe on the job id).
+  The receiver URL is refused if it points at a private network, and redirects are never followed.
+- **Reliability**: the queue lives in Redis with atomic claims. If a worker dies mid-job, a sweeper re-queues the job
+  (up to 3 runs, then `failed` with `job_stalled`). Any API replica processes jobs; add replicas to add throughput.
+
 ## Status
 
-Working and covered by tests: the gateway core, management API, metering, resilience, packaging.
+Every provider below was exercised against the real upstream on 2026-09-19 (`npm run probe`, all green), and its
+parser is tested on real captured output (`test/fixtures`).
 
-Not done yet:
+| Platform | Providers (in failover order) |
+|---|---|
+| YouTube | yt-dlp |
+| TikTok | tikwm (JSON API, concurrency 1) → yt-dlp |
+| X / Twitter | twmate → yt-dlp |
+| Bluesky | official AT Protocol AppView → yt-dlp |
+| Dailymotion | player metadata → yt-dlp |
+| Instagram, Facebook, SoundCloud, LinkedIn, Pinterest | yt-dlp |
 
-- **Only TikTok and YouTube have providers.** The other 17 platforms of the v1 code base were placeholders
-  returning fake success; they are intentionally not exposed. Working scrapers for most of them exist in the git
-  history (`git show 49efecd:services/<name>Service.js`) and should be ported onto the `Provider` interface.
-- Provider parsers are tested on synthetic fixtures; validate them against live upstream responses.
-- No asynchronous job endpoint yet (`POST /v1/jobs` with webhook callback) for slow extractions.
-- Billing is deliberately out of scope: plans are entitlements only. Attach a payment provider or a marketplace later.
-- Docker image build is not exercised in CI here yet (the workflow does it); run it once on a machine with Docker.
-- Legacy v1 code (`apps/api`, `apps/web`, `packages/`, `docs/`, Turborepo files) is still on disk, outside the workspace,
-  pending removal.
+yt-dlp is the engine behind most of this: one actively maintained extractor instead of a dozen scrapers of
+ad-supported sites that break silently. Dedicated fast providers stay in front where they are reliable, and requests
+fail over to yt-dlp automatically. Extraction with yt-dlp takes 8 to 17 s here (Python start-up, YouTube's signature
+challenge), so results are cached and callers need generous timeouts.
+
+What was found dead or unusable (and is therefore not offered):
+
+- `tikdownloader.io` (was the TikTok provider): Cloudflare managed challenge, unusable server-side. The gateway does
+  not try to defeat anti-bot challenges.
+- `vidfly` (was the YouTube provider): API gone. Public Piped/Invidious instances: all blocked or disabled.
+- Reddit: `reddit.com/.json` answers 403 from the test network. Kuaishou upstream: no response. Tumblr upstream
+  (`tumbleclip.com`): 404.
+- Spotify: not offered. Its streams are DRM-protected; "downloaders" work around that, which this project does not do.
+
+Not verified yet (no real sample URL tested): Reddit via yt-dlp, Tumblr with a genuine video post, Snapchat Spotlight,
+Threads, CapCut, Douyin, Kuaishou, Terabox. yt-dlp has extractors for several of them: to add one, declare the
+platform in `providers/platforms.ts`, add a `createYtDlpProvider(...)` line in `http/app.ts`, add its URL to
+`scripts/probe.ts`, and keep it only if the probe passes.
+
+### Things to know before running this for real
+
+- **YouTube blocks many datacenter IPs** ("Sign in to confirm you're not a bot"). It worked from a residential
+  connection; from a cloud VM expect failures. Options: `YTDLP_PROXY` (residential/ISP proxy) or `YTDLP_COOKIES_FILE`.
+  The gateway reports this as `blocked` and fails over; it does not attempt to bypass it.
+- **Keep yt-dlp current.** YouTube breaks extractors regularly and fixes land in hours. The image pins a version
+  (`--build-arg YTDLP_VERSION=…`); rebuild often. The `Provider probe` workflow runs daily and fails when a provider breaks.
+- **Merging reads video and audio through pipes**, so inputs must be streamable (fragmented MP4 or WebM, which is what
+  YouTube serves). A non-fragmented MP4 whose index sits at the end cannot be merged that way; complete files are
+  proxied unchanged instead.
+- **HLS inputs are opened by ffmpeg itself**, so a hostile playlist could point at internal hosts. Deny private egress
+  at the network level (firewall / security group) in production; the in-process check cannot defend against DNS rebinding.
+- yt-dlp reports session cookies for some CDNs (TikTok). The gateway deliberately never exposes or forwards them, so
+  `/v1/download` through the yt-dlp fallback for TikTok may be refused by the CDN; the primary TikTok provider does not need them.
+- Legal: see below. Serving YouTube content is against YouTube's terms; that is a business decision, not a technical one.
+
+Other gaps:
+
+- Jobs cover extraction only; a finished job returns links, use `/v1/download` to stream the file.
+- Billing is deliberately out of scope: plans are entitlements only.
+- **Docker was verified end to end** (Docker 29 on Arch, 2026-09-19): the image builds (612 MB: Node 22, Python, ffmpeg 8,
+  yt-dlp), `compose.yaml` brings up Postgres, Redis, the one-shot migration, the API and the worker; only the API port is
+  published. Inside the container: `/readyz` green, `/v1/media` for Bluesky (4.5 s) and YouTube through yt-dlp on Alpine (13 s),
+  `/v1/download` YouTube to MP3 (10 min 34 s, decoded duration exact, 23 s), 0 error-level log lines, and `SIGTERM` stops the
+  API and the worker with exit code 0 in under a second.
 
 ## Legal note
 

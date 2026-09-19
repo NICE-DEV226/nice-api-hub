@@ -107,10 +107,10 @@ export class MediaService {
 
       const started = performance.now();
       try {
-        const draft = await this.bulkheadFor(provider.id).run(() =>
+        const draft = await this.bulkheadFor(provider).run(() =>
           provider.fetch({
             url: target.url,
-            signal: AbortSignal.timeout(this.deps.options.upstreamTimeoutMs),
+            signal: AbortSignal.timeout(provider.timeoutMs ?? this.deps.options.upstreamTimeoutMs),
           }),
         );
         breaker.onSuccess();
@@ -169,11 +169,11 @@ export class MediaService {
     return breaker;
   }
 
-  private bulkheadFor(id: string): Bulkhead {
-    let bulkhead = this.bulkheads.get(id);
+  private bulkheadFor(provider: Provider): Bulkhead {
+    let bulkhead = this.bulkheads.get(provider.id);
     if (!bulkhead) {
-      bulkhead = new Bulkhead(this.deps.options.maxConcurrency, this.deps.options.maxQueue);
-      this.bulkheads.set(id, bulkhead);
+      bulkhead = new Bulkhead(provider.maxConcurrency ?? this.deps.options.maxConcurrency, this.deps.options.maxQueue);
+      this.bulkheads.set(provider.id, bulkhead);
     }
     return bulkhead;
   }

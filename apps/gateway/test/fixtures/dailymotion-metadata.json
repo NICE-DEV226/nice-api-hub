@@ -1,0 +1,27 @@
+{
+ "id": "x9yfz8u",
+ "title": "Big Buck Bunny | Official Blender Foundation Short Film (HD, 60fps)",
+ "duration": 635,
+ "thumbnails": {
+  "60": "https://s1.dmcdn.net/v/ZueOk1g3j7XLAzGJT/x60",
+  "120": "https://s1.dmcdn.net/v/ZueOk1g3j7XOmRBMf/x120",
+  "180": "https://s2.dmcdn.net/v/ZueOk1g3j7XrtwcIu/x180",
+  "240": "https://s1.dmcdn.net/v/ZueOk1g3j7XIa0vKl/x240",
+  "360": "https://s1.dmcdn.net/v/ZueOk1g3j7XKIRhd2/x360",
+  "480": "https://s2.dmcdn.net/v/ZueOk1g3j7XhVjrTt/x480",
+  "720": "https://s1.dmcdn.net/v/ZueOk1g3j7X6QTcMW/x720",
+  "1080": "https://s1.dmcdn.net/v/ZueOk1g3j7XB5_idr/x1080"
+ },
+ "owner": {
+  "screenname": "World From Above"
+ },
+ "qualities": {
+  "auto": [
+   {
+    "type": "application/x-mpegURL",
+    "url": "https://cdndirector.dailymotion.com/cdn/manifest/video/x9yfz8u.m3u8?sec=N7WFxiGcosdpl2LYleGeAwlSpXn1KjJB9_0spS8daIWs6pJoIV7vwuwyVx54_rPsGLEuVK2LqQUNswpY_jdQkA&dmTs=212654&dmV1st=A0CA4A001487850E73A35AC8A5954D38"
+   }
+  ]
+ },
+ "error": null
+}

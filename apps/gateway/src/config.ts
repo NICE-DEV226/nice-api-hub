@@ -44,13 +44,40 @@ const ConfigSchema = Type.Object({
   }),
   USAGE_FLUSH_INTERVAL_MS: Type.Integer({ default: 5000, minimum: 100 }),
 
+  /** yt-dlp extraction engine (YouTube and a long tail of platforms). Disabled automatically if the binary is missing. */
+  YTDLP_ENABLED: Type.Boolean({ default: true }),
+  YTDLP_PATH: Type.String({ default: 'yt-dlp' }),
+  YTDLP_JS_RUNTIME: Type.String({ default: 'node' }),
+  /** Netscape cookies file: helps with age-gated / login-walled content and bot checks. */
+  YTDLP_COOKIES_FILE: Type.String({ default: '' }),
+  /** Outbound proxy for extraction, e.g. a residential proxy when datacenter IPs are blocked. */
+  YTDLP_PROXY: Type.String({ default: '' }),
+
+  /** GET /v1/download: the gateway fetches, merges (ffmpeg) and streams the media itself. */
+  DOWNLOAD_ENABLED: Type.Boolean({ default: true }),
+  FFMPEG_PATH: Type.String({ default: 'ffmpeg' }),
+  DOWNLOAD_MAX_CONCURRENCY: Type.Integer({ default: 4, minimum: 1 }),
+  DOWNLOAD_MAX_SECONDS: Type.Integer({ default: 900, minimum: 10 }),
+  DOWNLOAD_MAX_BYTES: Type.Integer({ default: 1_073_741_824, minimum: 1_048_576 }),
+  /** Tests only. Never enable in production: it disables the SSRF guard. */
+  DOWNLOAD_ALLOW_PRIVATE_HOSTS: Type.Boolean({ default: false }),
+
+  /** POST /v1/jobs: queue an extraction and get the result by polling or by signed webhook. */
+  JOBS_ENABLED: Type.Boolean({ default: true }),
+  JOBS_CONCURRENCY: Type.Integer({ default: 4, minimum: 1 }),
+  JOBS_MAX_PENDING_PER_ACCOUNT: Type.Integer({ default: 20, minimum: 1 }),
+  /** How long a job (and its result) is kept. */
+  JOBS_TTL_SECONDS: Type.Integer({ default: 86_400, minimum: 60 }),
+  /** Comma-separated delay (ms) before each webhook attempt; the count is the max number of attempts. */
+  JOBS_WEBHOOK_BACKOFF_MS: Type.String({ default: '0,30000,120000,600000,3600000' }),
+
   PROBES_ENABLED: Type.Boolean({ default: false }),
   PROBE_INTERVAL_SECONDS: Type.Integer({ default: 300, minimum: 10 }),
   /** JSON object mapping a platform id to a known-good public URL used by synthetic probes. */
   PROBE_URLS: Type.String({ default: '{}' }),
 });
 
-export type Config = Static<typeof ConfigSchema> & { probeUrls: Record<string, string> };
+export type Config = Static<typeof ConfigSchema> & { probeUrls: Record<string, string>; webhookBackoffMs: number[] };
 
 export class ConfigError extends Error {}
 
@@ -80,9 +107,14 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     problems.push('PROBE_URLS: must be valid JSON');
   }
 
+  const backoff = (value as Static<typeof ConfigSchema>).JOBS_WEBHOOK_BACKOFF_MS.split(',').map((x) => Number(x.trim()));
+  if (backoff.length === 0 || backoff.some((n) => !Number.isFinite(n) || n < 0)) {
+    problems.push('JOBS_WEBHOOK_BACKOFF_MS: must be a comma-separated list of non-negative numbers');
+  }
+
   if (problems.length > 0) {
     throw new ConfigError(`Invalid configuration:\n  - ${problems.join('\n  - ')}`);
   }
 
-  return { ...(value as Static<typeof ConfigSchema>), probeUrls };
+  return { ...(value as Static<typeof ConfigSchema>), probeUrls, webhookBackoffMs: backoff };
 }

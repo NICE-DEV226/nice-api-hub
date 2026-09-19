@@ -83,6 +83,30 @@ Interactive docs: `/docs`. Machine-readable spec: `/openapi.json`.
 Without Docker: `apps/gateway/scripts/dev-services.sh start` launches throwaway Postgres + Redis on high
 ports (prints the env to export), then `npm run cli -w @nice-api-hub/gateway -- migrate` and `npm run dev`.
 
+## Accounts without e-mail
+
+A person is identified by their **computer**, not by an address. No e-mail, no password, nothing to remember.
+
+```
+GET  /v1/register           → can I create an account here? + a puzzle to solve
+POST /v1/register           → account + your device key + an offline RECOVERY key (both shown once)
+POST /v1/link               → (device key) a one-time code, valid 10 min, to add another computer
+POST /v1/link/redeem        → (new computer) trade that code for its own key on the same account
+POST /v1/recover            → (recovery key) get a working key on a new computer if the old one is lost
+GET/POST /v1/keys …         → list, create, revoke, rotate YOUR keys
+```
+
+Every computer has its own key, revocable individually, and the plan limits how many (free: 3). Keys carry **scopes**:
+`media` (use the API), `keys` (manage keys and link codes), `recover` (can do nothing except mint a device key: keep it
+offline). Anything not listed needs `media`, so a new route is safe by default.
+
+Anti-abuse without e-mail, each free for one person and costly for a bot: a **proof of work** solved by the client
+(`REGISTER_POW_BITS`, single-use, signed and stateless), **one active account per machine** (`REGISTER_ONE_PER_DEVICE`;
+only a keyed hash of a machine fingerprint is stored, never the raw id), and a **per-IP limit** that also covers
+invite-code and link-code guessing. These raise the cost of mass registration; they are not guarantees, since a
+fingerprint can be forged. Lose every computer *and* the recovery key, and the account is gone: acceptable for a free,
+anonymous account. `SIGNUP_MODE` is `closed` (default), `open`, or `invite`.
+
 ## Command line and terminal UI (`nah`)
 
 `apps/cli` is a Go program (Bubble Tea, Cobra) that talks to the gateway: scriptable commands (`nah media`,

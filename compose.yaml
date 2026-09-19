@@ -19,6 +19,13 @@ x-gateway: &gateway
     PROBE_URLS: ${PROBE_URLS:-}
     YTDLP_PROXY: ${YTDLP_PROXY:-}
     DOWNLOAD_MAX_CONCURRENCY: ${DOWNLOAD_MAX_CONCURRENCY:-4}
+    # closed (default) | open | invite. Behind Docker's bridge all local clients share one IP for the per-IP limit.
+    SIGNUP_MODE: ${SIGNUP_MODE:-closed}
+    SIGNUP_PLAN: ${SIGNUP_PLAN:-free}
+    SIGNUP_INVITE_CODES: ${SIGNUP_INVITE_CODES:-}
+    SIGNUP_PER_IP_PER_HOUR: ${SIGNUP_PER_IP_PER_HOUR:-5}
+    REGISTER_POW_BITS: ${REGISTER_POW_BITS:-20}
+    REGISTER_ONE_PER_DEVICE: ${REGISTER_ONE_PER_DEVICE:-true}
   # ffmpeg / yt-dlp children must be reaped and signalled properly.
   init: true
   networks: [internal]

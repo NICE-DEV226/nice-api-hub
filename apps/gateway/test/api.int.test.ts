@@ -130,9 +130,9 @@ describe.skipIf(!hasInfra)('gateway API (Postgres + Redis, fake providers)', () 
     });
 
     it('enforces the plan key limit atomically', async () => {
-      const acc = await account('free'); // max_keys = 2
-      const results = await Promise.all([1, 2, 3, 4].map((i) => admin('POST', `/accounts/${acc}/keys`, { label: `k${i}` })));
-      expect(results.filter((r) => r.statusCode === 201)).toHaveLength(2);
+      const acc = await account('free'); // max_keys = 3 (a laptop, a desktop and a phone)
+      const results = await Promise.all([1, 2, 3, 4, 5].map((i) => admin('POST', `/accounts/${acc}/keys`, { label: `k${i}` })));
+      expect(results.filter((r) => r.statusCode === 201)).toHaveLength(3);
       expect(results.filter((r) => r.statusCode === 409).every((r) => r.json().code === 'key_limit_reached')).toBe(true);
     });
 

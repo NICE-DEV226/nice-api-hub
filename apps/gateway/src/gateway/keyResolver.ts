@@ -8,6 +8,7 @@ export interface Principal {
   keyId: string;
   accountId: string;
   planId: string;
+  scopes: string[];
   limits: { rps: number; burst: number; dailyQuota: number | null };
   /** Effective platform allowlist (key ∩ plan). `null` means every platform. */
   platforms: string[] | null;
@@ -22,6 +23,7 @@ interface KeyRow {
   expires_at: Date | null;
   revoked_at: Date | null;
   key_platforms: string[] | null;
+  key_scopes: string[];
   account_status: string;
   plan_id: string;
   rps: string;
@@ -83,7 +85,12 @@ export class KeyResolver {
     const cacheKey = CACHE_PREFIX + hash;
     try {
       const cached = await this.deps.redis.get(cacheKey);
-      if (cached !== null) return cached === NEGATIVE ? null : (JSON.parse(cached) as Principal);
+      if (cached !== null) {
+        if (cached === NEGATIVE) return null;
+        const p = JSON.parse(cached) as Principal;
+        p.scopes ??= ['media']; // entries cached before scopes existed
+        return p;
+      }
     } catch {
       // Redis unavailable: fall through to Postgres.
     }
@@ -104,7 +111,7 @@ export class KeyResolver {
   private async loadFromDb(hash: string): Promise<Principal | null> {
     const { rows } = await this.deps.db.query<KeyRow>(
       `SELECT k.id AS key_id, k.account_id, k.expires_at, k.revoked_at,
-              k.platforms AS key_platforms, a.status AS account_status,
+              k.platforms AS key_platforms, k.scopes AS key_scopes, a.status AS account_status,
               a.plan_id, p.rps::text AS rps, p.burst, p.daily_quota::text AS daily_quota,
               p.platforms AS plan_platforms
          FROM api_keys k
@@ -119,6 +126,7 @@ export class KeyResolver {
       keyId: row.key_id,
       accountId: row.account_id,
       planId: row.plan_id,
+      scopes: row.key_scopes,
       limits: {
         rps: Number(row.rps),
         burst: row.burst,

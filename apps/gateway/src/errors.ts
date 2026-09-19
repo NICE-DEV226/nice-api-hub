@@ -31,6 +31,33 @@ export const errors = {
 
   conflict: (code: string, detail: string) => new AppError(409, code, detail),
 
+  signupsClosed: () =>
+    new AppError(403, 'signups_closed', 'Self-service signup is not enabled on this gateway. Ask the operator for an API key.'),
+
+  tooManyAttempts: (retryAfterSeconds: number) =>
+    new AppError(429, 'too_many_attempts', 'Too many attempts. Try again later.', {
+      headers: { 'retry-after': String(Math.max(1, Math.ceil(retryAfterSeconds))) },
+    }),
+
+  invalidPow: (reason: string) =>
+    new AppError(400, 'invalid_pow', `The proof of work was rejected (${reason}). Fetch a new challenge and retry.`),
+
+  invalidLinkCode: () => new AppError(400, 'invalid_link_code', 'That link code is invalid, expired or already used.'),
+
+  deviceAlreadyRegistered: () =>
+    new AppError(
+      409,
+      'device_already_registered',
+      'This computer already has an account. Use `nah link` from your other device, or `nah recover` with your recovery code.',
+    ),
+
+  signupUnavailable: () => new AppError(503, 'signup_unavailable', 'Signup is temporarily unavailable. Try again later.'),
+
+  tooManySignups: (retryAfterSeconds: number) =>
+    new AppError(429, 'too_many_signups', 'Too many accounts created from this address. Try again later.', {
+      headers: { 'retry-after': String(Math.max(1, Math.ceil(retryAfterSeconds))) },
+    }),
+
   tooManyJobs: (max: number) =>
     new AppError(429, 'too_many_jobs', `You already have ${max} pending jobs. Wait for some to finish.`, {
       headers: { 'retry-after': '5' },

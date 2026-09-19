@@ -4,6 +4,7 @@ import { Type } from '@sinclair/typebox';
 import type { AccountsService } from '../control/accounts.js';
 import { AppError, errors } from '../errors.js';
 import { safeEqual } from '../gateway/keys.js';
+import { parseGrace } from './deviceRoutes.js';
 import { Uuid } from './schemas.js';
 
 const Platforms = Type.Union([Type.Array(Type.String({ minLength: 1 })), Type.Null()]);
@@ -146,6 +147,7 @@ export async function adminRoutes(
           label: Type.String({ minLength: 1, maxLength: 80 }),
           environment: Type.Optional(Type.Union([Type.Literal('live'), Type.Literal('test')])),
           platforms: Type.Optional(Platforms),
+          scopes: Type.Optional(Type.Array(Type.String(), { minItems: 1 })),
           expiresAt: Type.Optional(Type.Union([Type.String({ format: 'date-time' }), Type.Null()])),
         }),
       },
@@ -172,13 +174,11 @@ export async function adminRoutes(
         tags: ['Management'],
         security,
         params: Type.Object({ id: Uuid }),
-        body: Type.Optional(
-          Type.Object({ graceSeconds: Type.Integer({ minimum: 0, maximum: 30 * 86_400, default: 86_400 }) }),
-        ),
+        description: 'Optional JSON body: `{ "graceSeconds": 86400 }` (0 to 30 days).',
       },
     },
     async (req) => {
-      const { key, meta, previous } = await accounts.rotateKey(req.params.id, req.body?.graceSeconds ?? 86_400);
+      const { key, meta, previous } = await accounts.rotateKey(req.params.id, parseGrace(req.body, 86_400));
       return { data: { ...meta, key }, meta: { previous, warning: 'Store this key now. It is not retrievable afterwards.' } };
     },
   );

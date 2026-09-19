@@ -33,6 +33,8 @@ import { assertPublicHttpUrl } from '../download/urlGuard.js';
 import { JobStore, type Job } from '../jobs/jobStore.js';
 import { JobRunner, toPublicJob } from '../jobs/runner.js';
 import { adminRoutes } from './adminRoutes.js';
+import { registerKeyRoutes, registerPublicRoutes } from './deviceRoutes.js';
+import { requireScope, type Scope } from '../gateway/scopes.js';
 import { MediaSchema, ProblemSchema, VariantSchema } from './schemas.js';
 import './types.js';
 
@@ -86,6 +88,14 @@ export interface BuiltApp {
 }
 
 const REQUEST_ID = /^[A-Za-z0-9._-]{8,128}$/;
+
+const SCOPE_BY_ROUTE: Record<string, Scope> = {
+  '/v1/keys': 'keys',
+  '/v1/keys/:id/revoke': 'keys',
+  '/v1/keys/:id/rotate': 'keys',
+  '/v1/link': 'keys',
+  '/v1/recover': 'recover',
+};
 
 // ajv-formats is CJS with a callable default export; NodeNext types it as a namespace.
 const addFormats = addFormatsModule as unknown as (ajv: Ajv) => Ajv;
@@ -247,6 +257,8 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
         { name: 'Media', description: 'Resolve media from a URL' },
         { name: 'Jobs', description: 'Asynchronous extraction with polling or signed webhooks' },
         { name: 'Account', description: 'Your usage and limits' },
+        { name: 'Signup', description: 'Create an account for this computer, or add another computer (no e-mail)' },
+        { name: 'Keys', description: 'Manage your own keys, link codes and recovery' },
         { name: 'Status', description: 'Platform availability' },
         { name: 'Management', description: 'Operator API (admin token)' },
       ],
@@ -334,6 +346,10 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
     },
   );
 
+  // ---- public: registering a device, redeeming a link code ------------------------
+
+  registerPublicRoutes(app, { config, redis, accounts });
+
   // ---- authenticated API -------------------------------------------------------
 
   await app.register(async (v1) => {
@@ -347,6 +363,9 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
         }),
       );
       req.principal = principal;
+      // Deny by default: a route that is not listed needs the `media` scope. A recovery key can therefore
+      // do nothing but recover, and a plain media key cannot manage keys.
+      requireScope(principal, SCOPE_BY_ROUTE[req.routeOptions.url ?? ''] ?? 'media');
 
       let decision: RateLimitDecision | null = null;
       try {
@@ -636,6 +655,8 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
         };
       },
     );
+
+    registerKeyRoutes(v1, { config, redis, accounts });
 
     scoped.get(
       '/v1/usage',

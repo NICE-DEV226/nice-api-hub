@@ -9,6 +9,7 @@ const principal = (limits: Principal['limits']): Principal => ({
   keyId: 'k',
   accountId: `acct-${++n}-${Math.random().toString(36).slice(2)}`,
   planId: 't',
+  scopes: ['media'],
   limits,
   platforms: null,
   expiresAt: null,

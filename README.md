@@ -62,6 +62,9 @@ Design decisions worth knowing:
 
 ## Quick start
 
+Prerequisites: Docker with the **buildx** plugin (on Arch: `sudo pacman -S docker-buildx`; without it BuildKit refuses
+to build), and your user in the `docker` group.
+
 ```bash
 cp apps/gateway/.env.example .env      # fill KEY_PEPPER, ADMIN_TOKEN, POSTGRES_PASSWORD (openssl rand -base64 48)
 docker compose up -d --build           # postgres, redis, migrate (one-shot), api, worker
@@ -263,8 +266,11 @@ Other gaps:
 
 - Jobs cover extraction only; a finished job returns links, use `/v1/download` to stream the file.
 - Billing is deliberately out of scope: plans are entitlements only.
-- The Docker image has **not** been built in this environment: the daemon runs but the current user is not in the
-  `docker` group. CI builds it and runs `yt-dlp --version && ffmpeg -version` inside it.
+- **Docker was verified end to end** (Docker 29 on Arch, 2026-09-19): the image builds (612 MB: Node 22, Python, ffmpeg 8,
+  yt-dlp), `compose.yaml` brings up Postgres, Redis, the one-shot migration, the API and the worker; only the API port is
+  published. Inside the container: `/readyz` green, `/v1/media` for Bluesky (4.5 s) and YouTube through yt-dlp on Alpine (13 s),
+  `/v1/download` YouTube to MP3 (10 min 34 s, decoded duration exact, 23 s), 0 error-level log lines, and `SIGTERM` stops the
+  API and the worker with exit code 0 in under a second.
 
 ## Legal note
 

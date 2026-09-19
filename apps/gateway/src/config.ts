@@ -62,6 +62,20 @@ const ConfigSchema = Type.Object({
   /** Tests only. Never enable in production: it disables the SSRF guard. */
   DOWNLOAD_ALLOW_PRIVATE_HOSTS: Type.Boolean({ default: false }),
 
+  /**
+   * Self-service signup (POST /v1/signup). `closed` (default): only operators create accounts.
+   * `open`: anyone can create an account on SIGNUP_PLAN, limited per IP. `invite`: needs one of SIGNUP_INVITE_CODES.
+   */
+  SIGNUP_MODE: Type.Union([Type.Literal('closed'), Type.Literal('open'), Type.Literal('invite')], { default: 'closed' }),
+  SIGNUP_PLAN: Type.String({ default: 'free' }),
+  /** Comma-separated codes accepted when SIGNUP_MODE=invite. */
+  SIGNUP_INVITE_CODES: Type.String({ default: '' }),
+  SIGNUP_PER_IP_PER_HOUR: Type.Integer({ default: 5, minimum: 1 }),
+  /** Zero bits the client's computer must find. Each +1 doubles the work: 20 is ~1M hashes, well under a second for a parallel Go client. */
+  REGISTER_POW_BITS: Type.Integer({ default: 20, minimum: 1, maximum: 32 }),
+  /** One active self-registered account per machine (stores only a keyed hash of a machine fingerprint). */
+  REGISTER_ONE_PER_DEVICE: Type.Boolean({ default: true }),
+
   /** POST /v1/jobs: queue an extraction and get the result by polling or by signed webhook. */
   JOBS_ENABLED: Type.Boolean({ default: true }),
   JOBS_CONCURRENCY: Type.Integer({ default: 4, minimum: 1 }),
@@ -77,7 +91,11 @@ const ConfigSchema = Type.Object({
   PROBE_URLS: Type.String({ default: '{}' }),
 });
 
-export type Config = Static<typeof ConfigSchema> & { probeUrls: Record<string, string>; webhookBackoffMs: number[] };
+export type Config = Static<typeof ConfigSchema> & {
+  probeUrls: Record<string, string>;
+  webhookBackoffMs: number[];
+  signupInviteCodes: string[];
+};
 
 export class ConfigError extends Error {}
 
@@ -112,9 +130,15 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     problems.push('JOBS_WEBHOOK_BACKOFF_MS: must be a comma-separated list of non-negative numbers');
   }
 
+  const inviteCodes = (value as Static<typeof ConfigSchema>).SIGNUP_INVITE_CODES.split(',').map((c) => c.trim()).filter(Boolean);
+  if ((value as Static<typeof ConfigSchema>).SIGNUP_MODE === 'invite' && inviteCodes.length === 0) {
+    problems.push('SIGNUP_INVITE_CODES: at least one code is required when SIGNUP_MODE=invite');
+  }
+  if (inviteCodes.some((c) => c.length < 8)) problems.push('SIGNUP_INVITE_CODES: codes must be at least 8 characters');
+
   if (problems.length > 0) {
     throw new ConfigError(`Invalid configuration:\n  - ${problems.join('\n  - ')}`);
   }
 
-  return { ...(value as Static<typeof ConfigSchema>), probeUrls, webhookBackoffMs: backoff };
+  return { ...(value as Static<typeof ConfigSchema>), probeUrls, webhookBackoffMs: backoff, signupInviteCodes: inviteCodes };
 }

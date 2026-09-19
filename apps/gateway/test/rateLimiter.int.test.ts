@@ -9,6 +9,7 @@ const principal = (limits: Principal['limits']): Principal => ({
   keyId: 'k',
   accountId: `acct-${++n}-${Math.random().toString(36).slice(2)}`,
   planId: 't',
+  scopes: ['media'],
   limits,
   platforms: null,
   expiresAt: null,
@@ -37,6 +38,18 @@ describe.skipIf(!hasInfra)('RateLimiter (Redis Lua, atomic)', () => {
     expect(denied).toMatchObject({ allowed: false, reason: 'rate' });
     expect(denied.retryAfterSeconds).toBeGreaterThanOrEqual(1);
     expect(results[0]!.remaining).toBe(4);
+  });
+
+  it('control calls use their own bucket and never touch the plan budget or daily quota', async () => {
+    const p = principal({ rps: 0.01, burst: 1, dailyQuota: 1 });
+    for (let i = 0; i < 40; i++) expect((await limiter.check(p, new Date(), 'control')).allowed).toBe(true);
+    // the media budget is intact: exactly one call is still allowed
+    expect((await limiter.check(p)).allowed).toBe(true);
+    expect((await limiter.check(p)).allowed).toBe(false);
+    // and a runaway loop is still stopped
+    const control = [];
+    for (let i = 0; i < 80; i++) control.push(await limiter.check(p, new Date(), 'control'));
+    expect(control.some((r) => !r.allowed)).toBe(true);
   });
 
   it('refills at the sustained rate', async () => {

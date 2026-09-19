@@ -1,7 +1,140 @@
 # NICE-API'HUB
 
-API-first media extraction gateway. One authenticated, rate-limited, cached endpoint in front of
-interchangeable upstream providers, with automatic failover.
+```
+██      ██      ██████      ██      ██
+████    ██    ██      ██    ██      ██
+██  ██  ██    ██████████    ██████████
+██    ████    ██      ██    ██      ██
+██      ██    ██      ██    ██      ██
+```
+
+**Grab media from social platforms, from your terminal or from your own code.**
+
+NICE-API'HUB turns a link (YouTube, TikTok, X, Instagram, Facebook, SoundCloud, Bluesky, Dailymotion, LinkedIn,
+Pinterest) into a playable file. It is built as infrastructure: one authenticated, rate-limited, cached API in front of
+interchangeable providers with automatic failover, and a small app on top for people who just want to paste a link.
+
+| | What | For whom |
+|---|---|---|
+| [`apps/cli`](apps/cli) | **`nah`**, the app: a terminal interface you click or type in, plus scriptable commands | People who download things |
+| [`apps/gateway`](apps/gateway) | The **API**: Fastify, PostgreSQL, Redis, yt-dlp, ffmpeg | Whoever runs the service, and developers integrating it |
+
+**Contents:** [Use `nah`](#use-nah) · [Run your own gateway](#run-your-own-gateway) · [Accounts without e-mail](#accounts-without-e-mail) ·
+[The API](#the-api) · [Downloads](#downloads-get-v1download) · [Async jobs](#asynchronous-jobs-post-v1jobs) ·
+[Architecture](#architecture) · [Operations](#operations) · [Status](#status) · [Extending](#adding-a-platform-or-provider) ·
+[Development](#development) · [Contributing](#contributing)
+
+## Use `nah`
+
+`nah` is one program with two faces: a **full-screen interface** (open it by typing `nah`), and **commands** for
+scripts. Everything in the interface works with the keyboard *and* the mouse: click the tabs, click a row, use the wheel.
+
+### Install
+
+There is no packaged release yet (see [Not done yet](#not-done-yet)); build it from source. It needs Go 1.26 or newer and
+produces one static binary.
+
+```bash
+git clone https://github.com/NICE-DEV226/nice-api-hub.git
+cd nice-api-hub/apps/cli
+make install          # puts `nah` in ~/go/bin (add it to your PATH), or: make build → ./bin/nah
+```
+
+### First run
+
+```bash
+nah
+```
+
+On a computer that has no account, `nah` opens a welcome screen. Pick what fits:
+
+1. **Create my account**: no e-mail, no password. Your computer is your identity. It takes about a second.
+   You are shown a **recovery key once**: copy it or save it to a file. It is the only way back if you lose this computer.
+2. **Add this computer to my account**: type the one-time code that `nah link` printed on another computer.
+3. **Use my recovery key**: get back in after losing a computer.
+4. **I already have an API key**, or 5. **I run this gateway** (paste the admin token).
+
+The gateway address defaults to `http://localhost:3000`; change it from the welcome screen, with `nah init <url>`, or with
+`NAH_URL`. Afterwards, typing `nah` opens straight on the download screen: paste a link, `Enter`, click the quality you
+want, click again to download. Files go to your Downloads folder and are never overwritten (`clip (2).mp4`).
+
+### Everyday commands
+
+```bash
+nah download <url>            # one playable file (video and audio merged); --mp3, --max-height 720, -o DIR
+nah history                   # what this computer downloaded
+nah again                     # download the last one again (or: nah again 3)
+nah link                      # a code to add another computer to your account
+nah keys list                 # your computers and keys; revoke or rotate any of them
+```
+
+Full reference, scripting notes, per-platform details and security model: **[apps/cli/README.md](apps/cli/README.md)**.
+
+## Run your own gateway
+
+Prerequisites: Docker with the **buildx** plugin (on Arch: `sudo pacman -S docker-buildx`; without it BuildKit refuses
+to build), and your user in the `docker` group.
+
+```bash
+cp apps/gateway/.env.example .env      # fill KEY_PEPPER, ADMIN_TOKEN, POSTGRES_PASSWORD (openssl rand -base64 48)
+docker compose up -d --build           # postgres, redis, migrate (one-shot), api, worker
+curl localhost:3000/readyz             # {"status":"ready", ...}
+```
+
+Choose how people get accounts with `SIGNUP_MODE` in `.env`:
+
+| Mode | Behaviour |
+|---|---|
+| `closed` (default) | Only you create accounts (admin API or `nah admin`) |
+| `open` | Anyone can create an account from `nah` (proof of work, one per machine, per-IP limit) |
+| `invite` | Same, but needs one of `SIGNUP_INVITE_CODES` |
+
+You are the only operator: keep the single `ADMIN_TOKEN`. Store it once on your machine (`nah login` puts it in the system
+keychain) and give your own computer a normal account for your downloads (`nah register`, or the welcome screen).
+
+Without the CLI, plain HTTP works too:
+
+```bash
+curl -s -X POST localhost:3000/admin/v1/accounts \
+  -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"Acme","planId":"pro"}'
+curl -s -X POST localhost:3000/admin/v1/accounts/<id>/keys \
+  -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"label":"prod"}'
+```
+
+Interactive API docs: `/docs`. Machine-readable spec: `/openapi.json`.
+
+Without Docker: `apps/gateway/scripts/dev-services.sh start` launches throwaway Postgres + Redis on high
+ports (prints the env to export), then `npm run cli -w @nice-api-hub/gateway -- migrate` and `npm run dev`.
+
+## Accounts without e-mail
+
+A person is identified by their **computer**, not by an address. No e-mail, no password, nothing to remember.
+
+```
+GET  /v1/register           → can I create an account here? + a puzzle to solve
+POST /v1/register           → account + your device key + an offline RECOVERY key (both shown once)
+POST /v1/link               → (device key) a one-time code, valid 10 min, to add another computer
+POST /v1/link/redeem        → (new computer) trade that code for its own key on the same account
+POST /v1/recover            → (recovery key) get a working key on a new computer if the old one is lost
+GET/POST /v1/keys …         → list, create, revoke, rotate YOUR keys
+```
+
+Every computer has its own key, revocable individually, and the plan limits how many (free: 3). Keys carry **scopes**:
+`media` (use the API), `keys` (manage keys and link codes), `recover` (can do nothing except mint a device key: keep it
+offline). Anything not listed needs `media`, so a new route is safe by default.
+
+Anti-abuse without e-mail, each free for one person and costly for a bot: a **proof of work** solved by the client
+(`REGISTER_POW_BITS`, single-use, signed and stateless), **one active account per machine** (`REGISTER_ONE_PER_DEVICE`;
+only a keyed hash of a machine fingerprint is stored, never the raw id), and a **per-IP limit** that also covers
+invite-code and link-code guessing. These raise the cost of mass registration; they are not guarantees, since a
+fingerprint can be forged. Lose every computer *and* the recovery key, and the account is gone: acceptable for a free,
+anonymous account. `SIGNUP_MODE` is `closed` (default), `open`, or `invite`.
+
+## The API
+
+The core call resolves a link into downloadable variants:
 
 ```
 GET /v1/media?url=https://www.tiktok.com/@user/video/123
@@ -27,63 +160,7 @@ Authorization: Bearer nah_live_…
 
 The response shape is identical for every platform and every provider.
 
-## Architecture
-
-```
-                         ┌──────────────────────── gateway (stateless, N replicas) ────────────────────────┐
- client ── Bearer key ──▶│ auth ─▶ rate limit ─▶ platform allowlist ─▶ cache ─▶ single-flight ─▶ providers │
-                         │  │          │                                  │                        │        │
-                         │  ▼          ▼                                  ▼                        ▼        │
-                         │ Redis     Redis (Lua, atomic)               Redis              circuit breaker   │
-                         │ (60 s)    GCRA + daily quota                (short TTL)        + bulkhead        │
-                         └───────┬─────────────────────────────────────────────────────────────┬──────────┘
-                                 │ miss                                                          │
-                              Postgres  ◀── usage: batched UPSERTs, off the hot path             ▼
-                        (accounts, plans, keys,                                   upstream A ─ fallback ─ B
-                         usage_daily, audit_log)
- operator ── admin token ──▶ /admin/v1  (accounts, plans, keys: create / revoke / rotate)
- worker ── synthetic probes ──▶ Redis ──▶ public GET /v1/platforms
-```
-
-Design decisions worth knowing:
-
-| Concern | Decision | Why |
-|---|---|---|
-| Hot path | Never touches Postgres on a warm request | Keys resolve from Redis; usage is buffered and flushed in batches |
-| Quotas | Per **account**, not per key | Extra keys can't multiply a customer's allowance |
-| Rate limiting | GCRA + daily counter in one Lua script | Atomic, O(1), exact under concurrency, server-side clock |
-| Provider faults | Rolling-window circuit breaker + per-provider bulkhead | A dead or slow upstream degrades only itself and is not hammered |
-| Failure semantics | "Content gone" ≠ "provider broken" | Dead links don't trip breakers and are negatively cached |
-| Health | Synthetic probes + breakers, never customer traffic | Clients can't fake an outage by sending bad requests |
-| Redis outage | Configurable `RATE_LIMIT_FAIL_MODE` (default `open`) | Availability vs. strict enforcement is the operator's call |
-| Keys | `nah_<env>_<192-bit random>`, stored as HMAC-SHA256 with a server pepper | A database dump alone is useless |
-| Errors | RFC 9457 `application/problem+json`, stable `code`s | Machine-readable, no stack traces, always a `requestId` |
-| Input | Host allowlist per platform, URL canonicalisation | Not an open relay; equivalent URLs share a cache entry |
-
-## Quick start
-
-Prerequisites: Docker with the **buildx** plugin (on Arch: `sudo pacman -S docker-buildx`; without it BuildKit refuses
-to build), and your user in the `docker` group.
-
-```bash
-cp apps/gateway/.env.example .env      # fill KEY_PEPPER, ADMIN_TOKEN, POSTGRES_PASSWORD (openssl rand -base64 48)
-docker compose up -d --build           # postgres, redis, migrate (one-shot), api, worker
-
-# Create a customer and issue a key (shown once)
-curl -s -X POST localhost:3000/admin/v1/accounts \
-  -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"name":"Acme","planId":"pro"}'
-curl -s -X POST localhost:3000/admin/v1/accounts/<id>/keys \
-  -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"label":"prod"}'
-```
-
-Interactive docs: `/docs`. Machine-readable spec: `/openapi.json`.
-
-Without Docker: `apps/gateway/scripts/dev-services.sh start` launches throwaway Postgres + Redis on high
-ports (prints the env to export), then `npm run cli -w @nice-api-hub/gateway -- migrate` and `npm run dev`.
-
-## API
+The response shape is identical for every platform and every provider.
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
@@ -99,6 +176,13 @@ ports (prints the env to export), then `npm run cli -w @nice-api-hub/gateway -- 
 
 Auth: `Authorization: Bearer <key>` or `X-API-Key: <key>`.
 
+Self-service endpoints (`/v1/register`, `/v1/link*`, `/v1/recover`, `/v1/keys*`) are described in
+[Accounts without e-mail](#accounts-without-e-mail).
+
+**Two budgets.** Calls that do work (`/v1/media`, `/v1/download`, `POST /v1/jobs`) spend your plan's rate limit and daily
+quota. Cheap control calls (`/v1/account`, `/v1/usage`, `GET /v1/jobs/:id`, `/v1/keys*`, `/v1/link`, `/v1/recover`) use a
+separate, generous bucket that never touches the daily quota, so a UI that refreshes its screen cannot use up your downloads.
+
 Rate-limit headers on every authenticated response: `RateLimit-Limit` (burst), `RateLimit-Remaining`,
 `RateLimit-Reset`, `X-Quota-Limit`, `X-Quota-Remaining`. On `429`: `Retry-After`.
 Error codes you'll meet: `unauthorized`, `account_suspended`, `platform_not_allowed`, `invalid_request`,
@@ -109,41 +193,10 @@ Default plans (editable via `PUT /admin/v1/plans/:id`):
 
 | Plan | Sustained | Burst | Daily | Active keys |
 |---|---|---|---|---|
-| free | 5 / min | 5 | 100 | 2 |
+| free | 5 / min | 5 | 100 | 3 |
 | basic | 20 / min | 20 | 1 000 | 5 |
 | pro | 100 / min | 100 | 10 000 | 20 |
 | enterprise | 1 000 / min | 500 | unlimited | 100 |
-
-## Adding a platform or provider
-
-1. Platform (host allowlist + canonicalisation): `apps/gateway/src/providers/platforms.ts`.
-2. Provider: implement `Provider` (`fetch(ctx) → MediaDraft`, throw `ProviderError` with the right `kind`)
-   in `providers/impl/`, register it in `buildDefaultProviders` (`http/app.ts`).
-   Several providers per platform give you failover for free; `priority` decides the order.
-3. Put the HTML/JSON → model mapping in a pure `parse…` function and unit-test it against a captured fixture.
-4. Add a known-good URL to `PROBE_URLS` so its health shows up in `/v1/platforms`.
-
-## Operations
-
-- **Configuration** is validated at boot; the process refuses to start on a missing or too-short secret
-  (there are no built-in fallback secrets).
-- **Scaling**: replicas are stateless. Per-process state is limited to circuit breakers and bulkheads
-  (each replica learns upstream health on its own) and a small usage buffer.
-- **Shutdown**: on `SIGTERM` it stops accepting, drains in-flight requests, flushes buffered usage, then exits.
-- **Usage accuracy**: usage is aggregated per account/day/platform and flushed every `USAGE_FLUSH_INTERVAL_MS`.
-  A hard crash can lose at most one interval of counters. Quota *enforcement* lives in Redis and is exact.
-- **Rotating `KEY_PEPPER`** invalidates every issued key. Rotate individual keys with `/keys/:id/rotate` instead.
-
-## Development
-
-```bash
-npm ci
-npm run typecheck && npm test          # integration tests need TEST_DATABASE_URL / TEST_REDIS_URL, else they skip
-```
-
-Tests run against real Postgres and Redis (no mocks for the data plane): atomic rate limiting under
-concurrency, cache invalidation on revoke/plan change, quota sharing across keys, failover,
-fail-open/closed behaviour with Redis down.
 
 ## Downloads (`GET /v1/download`)
 
@@ -213,6 +266,50 @@ A job goes `queued → running → succeeded | failed`. On success `result` is t
 - **Reliability**: the queue lives in Redis with atomic claims. If a worker dies mid-job, a sweeper re-queues the job
   (up to 3 runs, then `failed` with `job_stalled`). Any API replica processes jobs; add replicas to add throughput.
 
+## Architecture
+
+```
+                         ┌──────────────────────── gateway (stateless, N replicas) ────────────────────────┐
+ client ── Bearer key ──▶│ auth ─▶ rate limit ─▶ platform allowlist ─▶ cache ─▶ single-flight ─▶ providers │
+                         │  │          │                                  │                        │        │
+                         │  ▼          ▼                                  ▼                        ▼        │
+                         │ Redis     Redis (Lua, atomic)               Redis              circuit breaker   │
+                         │ (60 s)    GCRA + daily quota                (short TTL)        + bulkhead        │
+                         └───────┬─────────────────────────────────────────────────────────────┬──────────┘
+                                 │ miss                                                          │
+                              Postgres  ◀── usage: batched UPSERTs, off the hot path             ▼
+                        (accounts, plans, keys,                                   upstream A ─ fallback ─ B
+                         usage_daily, audit_log)
+ operator ── admin token ──▶ /admin/v1  (accounts, plans, keys: create / revoke / rotate)
+ worker ── synthetic probes ──▶ Redis ──▶ public GET /v1/platforms
+```
+
+Design decisions worth knowing:
+
+| Concern | Decision | Why |
+|---|---|---|
+| Hot path | Never touches Postgres on a warm request | Keys resolve from Redis; usage is buffered and flushed in batches |
+| Quotas | Per **account**, not per key | Extra keys can't multiply a customer's allowance |
+| Rate limiting | GCRA + daily counter in one Lua script | Atomic, O(1), exact under concurrency, server-side clock |
+| Provider faults | Rolling-window circuit breaker + per-provider bulkhead | A dead or slow upstream degrades only itself and is not hammered |
+| Failure semantics | "Content gone" ≠ "provider broken" | Dead links don't trip breakers and are negatively cached |
+| Health | Synthetic probes + breakers, never customer traffic | Clients can't fake an outage by sending bad requests |
+| Redis outage | Configurable `RATE_LIMIT_FAIL_MODE` (default `open`) | Availability vs. strict enforcement is the operator's call |
+| Keys | `nah_<env>_<192-bit random>`, stored as HMAC-SHA256 with a server pepper | A database dump alone is useless |
+| Errors | RFC 9457 `application/problem+json`, stable `code`s | Machine-readable, no stack traces, always a `requestId` |
+| Input | Host allowlist per platform, URL canonicalisation | Not an open relay; equivalent URLs share a cache entry |
+
+## Operations
+
+- **Configuration** is validated at boot; the process refuses to start on a missing or too-short secret
+  (there are no built-in fallback secrets).
+- **Scaling**: replicas are stateless. Per-process state is limited to circuit breakers and bulkheads
+  (each replica learns upstream health on its own) and a small usage buffer.
+- **Shutdown**: on `SIGTERM` it stops accepting, drains in-flight requests, flushes buffered usage, then exits.
+- **Usage accuracy**: usage is aggregated per account/day/platform and flushed every `USAGE_FLUSH_INTERVAL_MS`.
+  A hard crash can lose at most one interval of counters. Quota *enforcement* lives in Redis and is exact.
+- **Rotating `KEY_PEPPER`** invalidates every issued key. Rotate individual keys with `/keys/:id/rotate` instead.
+
 ## Status
 
 Every provider below was exercised against the real upstream on 2026-09-19 (`npm run probe`, all green), and its
@@ -271,6 +368,52 @@ Other gaps:
   published. Inside the container: `/readyz` green, `/v1/media` for Bluesky (4.5 s) and YouTube through yt-dlp on Alpine (13 s),
   `/v1/download` YouTube to MP3 (10 min 34 s, decoded duration exact, 23 s), 0 error-level log lines, and `SIGTERM` stops the
   API and the worker with exit code 0 in under a second.
+
+## Not done yet
+
+Things this README does **not** promise, so you are not surprised:
+
+- **No packaged installer or prebuilt releases** yet: `nah` is built from source (see above). A one-line installer served by
+  the gateway, release binaries and `nah update` are planned.
+- **The interface has Dashboard, Accounts (operator) and a download screen.** Download history is available as commands
+  (`nah history`, `nah again`); History, Devices and Settings *tabs* are not in the interface yet.
+- **`nah` was run for real on Linux only.** The macOS and Windows builds compile and their platform code (machine id,
+  keychain, file names, opening files) is unit-tested, but nobody has run them on those systems yet. Reports welcome.
+- **The Dashboard shows every platform as "unknown"** until the gateway's probes are enabled (`PROBES_ENABLED=true`).
+
+## Adding a platform or provider
+
+1. Platform (host allowlist + canonicalisation): `apps/gateway/src/providers/platforms.ts`.
+2. Provider: implement `Provider` (`fetch(ctx) → MediaDraft`, throw `ProviderError` with the right `kind`)
+   in `providers/impl/`, register it in `buildDefaultProviders` (`http/app.ts`).
+   Several providers per platform give you failover for free; `priority` decides the order.
+3. Put the HTML/JSON → model mapping in a pure `parse…` function and unit-test it against a captured fixture.
+4. Add a known-good URL to `PROBE_URLS` so its health shows up in `/v1/platforms`.
+
+## Development
+
+```bash
+npm ci
+npm run typecheck && npm test          # integration tests need TEST_DATABASE_URL / TEST_REDIS_URL, else they skip
+```
+
+Tests run against real Postgres and Redis (no mocks for the data plane): atomic rate limiting under
+concurrency, cache invalidation on revoke/plan change, quota sharing across keys, failover,
+fail-open/closed behaviour with Redis down.
+
+The Go program has its own tests (`cd apps/cli && make test`, or `make race`); they use a fake gateway and, for the
+interface, `teatest`. CI runs the gateway tests against real Postgres and Redis, the CLI tests with the race detector, and a
+Docker build (`.github/workflows/ci.yml`). A daily workflow (`probe.yml`) checks that every provider still works.
+
+## Contributing
+
+Bug reports, fixes and new providers are welcome. Read **[CONTRIBUTING.md](CONTRIBUTING.md)** first (setup, tests, commit and
+review conventions) and follow the **[Code of Conduct](CODE_OF_CONDUCT.md)**.
+
+## Licence
+
+No licence has been chosen for this repository yet, which means that, by default, all rights are reserved. Until one is added,
+do not assume you may redistribute it.
 
 ## Legal note
 

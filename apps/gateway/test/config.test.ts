@@ -39,6 +39,17 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...base, ADMIN_TOKEN: '' })).toThrow(/ADMIN_TOKEN/);
   });
 
+  it('validates signup settings', () => {
+    expect(loadConfig(base).SIGNUP_MODE).toBe('closed'); // safe default
+    expect(loadConfig({ ...base, SIGNUP_MODE: 'open' }).SIGNUP_MODE).toBe('open');
+    expect(() => loadConfig({ ...base, SIGNUP_MODE: 'invite' })).toThrow(/SIGNUP_INVITE_CODES/);
+    expect(() => loadConfig({ ...base, SIGNUP_MODE: 'invite', SIGNUP_INVITE_CODES: 'short' })).toThrow(/at least 8/);
+    expect(loadConfig({ ...base, SIGNUP_MODE: 'invite', SIGNUP_INVITE_CODES: ' code-number-1 , code-number-2 ' }).signupInviteCodes).toEqual(['code-number-1', 'code-number-2']);
+    expect(() => loadConfig({ ...base, SIGNUP_MODE: 'wide-open' })).toThrow(/SIGNUP_MODE/);
+    expect(loadConfig(base)).toMatchObject({ REGISTER_POW_BITS: 20, REGISTER_ONE_PER_DEVICE: true });
+    expect(() => loadConfig({ ...base, REGISTER_POW_BITS: '99' })).toThrow(/REGISTER_POW_BITS/);
+  });
+
   it('parses PROBE_URLS', () => {
     expect(loadConfig({ ...base, PROBE_URLS: '{"tiktok":"https://tiktok.com/x"}' }).probeUrls).toEqual({ tiktok: 'https://tiktok.com/x' });
     expect(() => loadConfig({ ...base, PROBE_URLS: 'nope' })).toThrow(/PROBE_URLS/);

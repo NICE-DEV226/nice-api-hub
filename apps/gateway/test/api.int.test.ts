@@ -130,9 +130,9 @@ describe.skipIf(!hasInfra)('gateway API (Postgres + Redis, fake providers)', () 
     });
 
     it('enforces the plan key limit atomically', async () => {
-      const acc = await account('free'); // max_keys = 2
-      const results = await Promise.all([1, 2, 3, 4].map((i) => admin('POST', `/accounts/${acc}/keys`, { label: `k${i}` })));
-      expect(results.filter((r) => r.statusCode === 201)).toHaveLength(2);
+      const acc = await account('free'); // max_keys = 3 (a laptop, a desktop and a phone)
+      const results = await Promise.all([1, 2, 3, 4, 5].map((i) => admin('POST', `/accounts/${acc}/keys`, { label: `k${i}` })));
+      expect(results.filter((r) => r.statusCode === 201)).toHaveLength(3);
       expect(results.filter((r) => r.statusCode === 409).every((r) => r.json().code === 'key_limit_reached')).toBe(true);
     });
 
@@ -207,6 +207,17 @@ describe.skipIf(!hasInfra)('gateway API (Postgres + Redis, fake providers)', () 
       expect(denied.json()).toMatchObject({ status: 429, code: 'quota_exceeded' });
       expect(Number(denied.headers['retry-after'])).toBeGreaterThan(0);
       expect(denied.headers['x-quota-remaining']).toBe('0');
+    });
+
+    it('reading your account or keys never spends the media budget (a refreshing UI must not eat downloads)', async () => {
+      await admin('PUT', '/plans/scarce', { name: 'Scarce', rps: 0.01, burst: 1, dailyQuota: 1, maxKeys: 5, platforms: null });
+      const { key } = await issueKey(await account('scarce'));
+      for (let i = 0; i < 10; i++) {
+        expect((await call(key, '/v1/account')).statusCode).toBe(200);
+        expect((await call(key, '/v1/usage')).statusCode).toBe(200);
+      }
+      expect((await media(key)).statusCode).toBe(200); // the single allowed download is still there
+      expect((await media(key)).statusCode).toBe(429);
     });
 
     it('rate-limits bursts per account and recovers', async () => {

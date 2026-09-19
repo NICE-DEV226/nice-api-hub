@@ -154,6 +154,7 @@ Settings resolve in this order: flag → environment → profile → default.
 | `NAH_PROFILE` | Which profile to use. Several gateways? `nah login --profile staging`, `nah config use staging` |
 | `NAH_CONFIG` | Path of the config file itself |
 | `NAH_CONFIG_DIR` · `NAH_DATA_DIR` · `NAH_DOWNLOAD_DIR` | Override the folders below |
+| `NAH_DEVICE_ID` | Pretend to be another computer (testing): replaces the machine identifier |
 | `NAH_NO_KEYRING` | Skip the system keychain and use the private file (servers, containers, CI) |
 
 | What | Linux | macOS | Windows |

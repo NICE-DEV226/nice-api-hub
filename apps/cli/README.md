@@ -2,8 +2,6 @@
 
 The command line and terminal interface for [NICE-API'HUB](../../README.md).
 
-<p align="center"><img src="../../docs/nah-welcome.png" alt="nah: the welcome screen" width="640"></p>
-
 One static binary (Go, no runtime needed), two ways to use it:
 
 - **A full-screen interface**: type `nah`. Tabs, rows and buttons work with the keyboard and the mouse.
@@ -45,6 +43,8 @@ The gateway address defaults to `http://localhost:3000`. Point at another one wi
 
 A computer without an account lands on a welcome screen:
 
+<p align="center"><img src="../../docs/nah-welcome.png" alt="The welcome screen" width="720"></p>
+
 | Choice | What happens |
 |---|---|
 | **Create my account** | Registers this computer, no e-mail, no password (about a second). Shows a **recovery key once**: `c` copies it, `s` saves it to a file, `Enter` continues (it warns you if you did neither). |
@@ -63,6 +63,8 @@ No terminal UI? `nah register`, `nah link`, `nah recover` and `nah login` do the
 
 Open it with `nah` (or `nah tui`). Tabs depend on what this computer can do: **Dashboard** always; **Accounts** with the
 admin token; **Playground** (the download screen) with an API key.
+
+<p align="center"><img src="../../docs/download.png" alt="The download screen: pick a quality, click again to download" width="700"></p>
 
 **With the mouse:** click a tab in the top right; click a row to select it; click the highlighted row again to download it;
 click the buttons under a list; use the wheel to scroll. Hold `Shift` to select text with the mouse (the terminal gives the

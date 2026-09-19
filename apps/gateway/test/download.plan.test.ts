@@ -124,6 +124,13 @@ describe('download helpers', () => {
     expect(cd).not.toMatch(/[\r\n]/);
   });
 
+  it("keeps filename* strictly RFC 5987: ! ' ( ) * are percent-encoded", () => {
+    const cd = contentDisposition("Sanctuary (CC-BY) it's *live*!.mp3");
+    const star = cd.split("filename*=UTF-8''")[1]!;
+    expect(star).toBe('Sanctuary%20%28CC-BY%29%20it%27s%20%2Alive%2A%21.mp3');
+    expect(star).not.toMatch(/[!'()*]/);
+  });
+
   it('SlotLimiter refuses when full and releases exactly once', () => {
     const l = new SlotLimiter(1);
     const r = l.tryAcquire()!;

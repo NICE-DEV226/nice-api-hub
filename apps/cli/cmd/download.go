@@ -3,11 +3,13 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/api"
-	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/dl"
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/history"
 	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/tui"
 	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/ui"
 )
@@ -32,43 +34,14 @@ func (a *app) downloadCmd() *cobra.Command {
 			if audio && maxHeight > 0 {
 				return usageErr(errors.New("--max-height applies to video, not to --audio/--mp3"))
 			}
-			c, err := a.client()
-			if err != nil {
-				return usageErr(err)
-			}
 			req := api.DownloadRequest{URL: args[0], Kind: "video", MaxHeight: maxHeight}
-			fallback := "nah-download.mp4"
 			if audio {
-				req.Kind, fallback = "audio", "nah-download.m4a"
+				req.Kind = "audio"
 				if mp3 {
-					req.AudioFormat, fallback = "mp3", "nah-download.mp3"
+					req.AudioFormat = "mp3"
 				}
 			}
-			opts := tui.DownloadOptions{Client: c, Request: req, Dest: out, Fallback: fallback, Force: force}
-
-			// No overall timeout: a large file may take minutes. Ctrl+C cancels.
-			var res tui.DownloadResult
-			if a.env.StderrTTY && !a.jsonOut && !quiet {
-				res, err = tui.RunDownload(cmd.Context(), a.env.Err, opts)
-			} else {
-				res, err = tui.RunDownloadPlain(cmd.Context(), a.env.Err, opts, quiet || a.jsonOut)
-			}
-			if err != nil {
-				if errors.Is(err, dl.ErrExists) {
-					return fmt.Errorf("%w", err)
-				}
-				return err
-			}
-			if a.jsonOut {
-				return a.printJSON(map[string]any{"path": res.Path, "bytes": res.Bytes, "provider": res.Provider, "elapsedMs": res.Elapsed.Milliseconds()})
-			}
-			if quiet {
-				a.println(res.Path)
-				return nil
-			}
-			a.printf("%s saved %s %s\n", ui.OK.Render("✓"), ui.Bold.Render(res.Path),
-				ui.MutedText.Render(fmt.Sprintf("(%s in %s, via %s)", ui.Bytes(res.Bytes), res.Elapsed.Round(100e6), res.Provider)))
-			return nil
+			return a.download(cmd, req, "", out, force, false, quiet)
 		},
 	}
 	f := cmd.Flags()
@@ -79,4 +52,50 @@ func (a *app) downloadCmd() *cobra.Command {
 	f.BoolVarP(&force, "force", "f", false, "overwrite an existing file")
 	f.BoolVarP(&quiet, "quiet", "q", false, "no progress; print only the saved path")
 	return cmd
+}
+
+func fallbackName(req api.DownloadRequest) string {
+	switch {
+	case req.AudioFormat == "mp3":
+		return "nah-download.mp3"
+	case req.Kind == "audio":
+		return "nah-download.m4a"
+	}
+	return "nah-download.mp4"
+}
+
+// download runs one download, prints the outcome and records it in the history.
+func (a *app) download(cmd *cobra.Command, req api.DownloadRequest, title, out string, force, unique, quiet bool) error {
+	c, err := a.client()
+	if err != nil {
+		return usageErr(err)
+	}
+	opts := tui.DownloadOptions{Client: c, Request: req, Dest: out, Fallback: fallbackName(req), Force: force, Unique: unique}
+
+	// No overall timeout: a large file may take minutes. Ctrl+C cancels.
+	var res tui.DownloadResult
+	if a.env.StderrTTY && !a.jsonOut && !quiet {
+		res, err = tui.RunDownload(cmd.Context(), a.env.Err, opts)
+	} else {
+		res, err = tui.RunDownloadPlain(cmd.Context(), a.env.Err, opts, quiet || a.jsonOut)
+	}
+	if err != nil {
+		return err
+	}
+	if title == "" {
+		title = strings.TrimSuffix(filepath.Base(res.Path), filepath.Ext(res.Path))
+	}
+	if _, herr := a.history().Add(history.Entry{URL: req.URL, Title: title, Kind: req.Kind, MaxHeight: req.MaxHeight, AudioFormat: req.AudioFormat, Path: res.Path, Bytes: res.Bytes}); herr != nil {
+		a.printErrln(ui.MutedText.Render("  (could not update the download history: " + herr.Error() + ")"))
+	}
+	if a.jsonOut {
+		return a.printJSON(map[string]any{"path": res.Path, "bytes": res.Bytes, "provider": res.Provider, "elapsedMs": res.Elapsed.Milliseconds()})
+	}
+	if quiet {
+		a.println(res.Path)
+		return nil
+	}
+	a.printf("%s saved %s %s\n", ui.OK.Render("✓"), ui.Bold.Render(res.Path),
+		ui.MutedText.Render(fmt.Sprintf("(%s in %s, via %s)", ui.Bytes(res.Bytes), res.Elapsed.Round(100e6), res.Provider)))
+	return nil
 }

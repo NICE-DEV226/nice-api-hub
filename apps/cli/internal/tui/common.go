@@ -21,6 +21,8 @@ type Deps struct {
 	DownloadDir string
 	// Refresh is the dashboard auto-refresh period (0 disables it).
 	Refresh time.Duration
+	// Session lets the interface set this computer up (accounts, keys). Nil disables the setup screens.
+	Session Session
 	// Copy puts text on the clipboard. Defaults to the OSC 52 terminal escape.
 	Copy func(string) tea.Cmd
 }

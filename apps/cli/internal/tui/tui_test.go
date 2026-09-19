@@ -123,7 +123,9 @@ func testDeps(t *testing.T, g *fakeGateway, api_, admin bool) Deps {
 
 func start(t *testing.T, d Deps, w, h int) *teatest.TestModel {
 	t.Helper()
-	return teatest.NewTestModel(t, NewApp(d), teatest.WithInitialTermSize(w, h))
+	a := NewApp(d)
+	a.active = 0 // the app opens on the Playground when there is an API key; most tests begin on the first tab
+	return teatest.NewTestModel(t, a, teatest.WithInitialTermSize(w, h))
 }
 
 func waitFor(t *testing.T, tm *teatest.TestModel, needles ...string) {
@@ -190,7 +192,9 @@ func TestTabsAdaptToCredentials(t *testing.T) {
 
 func TestUnreachableGatewayShowsAHelpfulPanel(t *testing.T) {
 	c, _ := api.New("http://127.0.0.1:1", "k", "a")
-	tm := teatest.NewTestModel(t, NewApp(Deps{Client: c, Profile: "x", HasAPI: true}), teatest.WithInitialTermSize(110, 30))
+	a := NewApp(Deps{Client: c, Profile: "x", HasAPI: true})
+	a.active = 0
+	tm := teatest.NewTestModel(t, a, teatest.WithInitialTermSize(110, 30))
 	waitFor(t, tm, "Cannot reach the gateway", "docker compose ps")
 	tm.Send(press("q"))
 	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
@@ -327,8 +331,7 @@ func TestPlaygroundSurfacesGatewayErrors(t *testing.T) {
 	t.Cleanup(srv.Close)
 	c, _ := api.New(srv.URL, "k", "a")
 	tm := teatest.NewTestModel(t, NewApp(Deps{Client: c, Profile: "t", HasAPI: true, Copy: func(string) tea.Cmd { return nil }}), teatest.WithInitialTermSize(120, 36))
-	tm.Send(press("2"))
-	waitFor(t, tm, "Paste a media URL")
+	waitFor(t, tm, "Paste a media URL") // with an API key the app opens on the Playground
 	tm.Type("https://www.tiktok.com/@x/video/1")
 	tm.Send(press("enter"))
 	waitFor(t, tm, "content_unavailable", "private, removed")

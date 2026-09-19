@@ -56,11 +56,18 @@ func NewRoot(env Env) *cobra.Command {
 		Short: "Command line and terminal UI for NICE-API'HUB",
 		Long: ui.Title.Render("nah") + " — operate and use a NICE-API'HUB gateway.\n\n" +
 			"Customers resolve and download media; operators manage accounts and keys.\n" +
-			"Run " + ui.Code.Render("nah login") + " once, then " + ui.Code.Render("nah tui") + " for the full-screen interface.",
+			"Just run " + ui.Code.Render("nah") + ": it opens the interface and sets your account up the first time.",
 		SilenceUsage:      true,
 		SilenceErrors:     true,
 		DisableAutoGenTag: true,
 		PersistentPreRunE: a.init,
+		// Plain `nah` on a terminal opens the interface; anywhere else it shows the help.
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if a.env.Interactive {
+				return a.runTUI(cmd, "")
+			}
+			return cmd.Help()
+		},
 	}
 	root.SetOut(env.Out)
 	root.SetErr(env.Err)
@@ -77,7 +84,7 @@ func NewRoot(env Env) *cobra.Command {
 	root.AddCommand(
 		a.loginCmd(), a.configCmd(), a.statusCmd(), a.mediaCmd(), a.downloadCmd(),
 		a.jobsCmd(), a.accountCmd(), a.usageCmd(), a.adminCmd(), a.tuiCmd(), a.versionCmd(),
-		a.initCmd(), a.registerCmd(), a.linkCmd(), a.recoverCmd(), a.keysCmd(),
+		a.initCmd(), a.registerCmd(), a.linkCmd(), a.recoverCmd(), a.keysCmd(), a.historyCmd(), a.againCmd(),
 	)
 	return root
 }

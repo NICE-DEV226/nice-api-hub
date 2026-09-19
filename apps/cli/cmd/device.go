@@ -80,6 +80,9 @@ func (a *app) downloadDir() string {
 	if a.res.DownloadDir != "" {
 		return a.res.DownloadDir
 	}
+	if a.env.Paths.Getenv == nil {
+		return "."
+	}
 	return a.env.Paths.DownloadsDir()
 }
 
@@ -163,8 +166,10 @@ func (a *app) linkCmd() *cobra.Command {
 				}
 				a.println("Link code: " + ui.Title.Render(lc.Code) + ui.MutedText.Render(fmt.Sprintf("  (valid %d min, single use)", lc.TTLSeconds/60)))
 				a.println(ui.MutedText.Render("On the other computer, install nah and run:  nah link " + lc.Code))
-				if m, err := a.env.Clipboard.Copy(lc.Code); err == nil && m != "" {
-					a.println(ui.MutedText.Render("  (copied to the clipboard)"))
+				if a.env.Interactive { // never write clipboard escapes into a pipe, or touch the clipboard of a script
+					if m, err := a.env.Clipboard.Copy(lc.Code); err == nil && m != "" {
+						a.println(ui.MutedText.Render("  (copied to the clipboard)"))
+					}
 				}
 				return nil
 			}

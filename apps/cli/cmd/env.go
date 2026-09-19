@@ -53,6 +53,8 @@ type Env struct {
 	Clipboard clip.Copier
 	// Paths says where per-OS things live.
 	Paths paths.Env
+	// HistoryPath overrides where the download history lives (tests); empty means the per-OS data directory.
+	HistoryPath string
 	// Solve overrides the proof-of-work solver (tests).
 	Solve onboard.Solver
 }

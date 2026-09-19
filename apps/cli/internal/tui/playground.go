@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -42,10 +41,14 @@ type playground struct {
 	w, h  int
 	state int
 
-	in  textinput.Model
-	sp  spinner.Model
-	bar progress.Model
-	tbl table.Model
+	in   textinput.Model
+	sp   spinner.Model
+	bar  progress.Model
+	tbl  *grid
+	acts actionBar
+
+	// where things were drawn last, for the mouse
+	gridY, actsY int
 
 	res    *api.MediaResult
 	cancel context.CancelFunc // cancels the resolve in flight
@@ -75,16 +78,8 @@ func newPlayground(d Deps) *playground {
 		sp:  spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(ui.Title)),
 		bar: progress.New(progress.WithDefaultGradient(), progress.WithWidth(40), progress.WithoutPercentage()),
 	}
-	m.tbl = table.New(table.WithColumns(variantColumns(80)), table.WithFocused(true), table.WithHeight(10))
-	styleTable(&m.tbl, true)
+	m.tbl = newGrid([]string{"#", "KIND", "QUALITY", "CODEC", "SIZE", "AUDIO", "PROTO", "EXT"}, []int{3, 5, 14, 6, 8, 5, 6, 4})
 	return m
-}
-
-func variantColumns(w int) []table.Column {
-	return []table.Column{
-		{Title: "#", Width: 3}, {Title: "KIND", Width: 5}, {Title: "QUALITY", Width: 9}, {Title: "CODEC", Width: 6},
-		{Title: "SIZE", Width: 8}, {Title: "AUDIO", Width: 5}, {Title: "PROTO", Width: 6}, {Title: "EXT", Width: 4},
-	}
 }
 
 func (m *playground) Capturing() bool { return m.state == pgInput }
@@ -107,8 +102,7 @@ func (m *playground) Close() {
 func (m *playground) SetSize(w, h int) {
 	m.w, m.h = w, h
 	m.in.Width = maxInt(20, w-8)
-	m.tbl.SetWidth(w - 6)
-	m.tbl.SetHeight(maxInt(4, h-10))
+	m.tbl.SetSize(maxInt(20, w-2), maxInt(5, h-10))
 }
 
 func (m *playground) Help() []key.Binding {
@@ -137,7 +131,7 @@ func (m *playground) resolve(url string) tea.Cmd {
 }
 
 func (m *playground) buildRows() {
-	rows := make([]table.Row, len(m.res.Data.Variants))
+	rows := make([][]string, len(m.res.Data.Variants))
 	for i, v := range m.res.Data.Variants {
 		audio := "—"
 		if v.Kind == "video" {
@@ -162,7 +156,7 @@ func (m *playground) buildRows() {
 		if q == "" {
 			q = ui.Truncate(v.Label, 10)
 		}
-		rows[i] = table.Row{fmt.Sprint(i + 1), v.Kind, dashIfEmpty(q), dashIfEmpty(v.Codec), size, audio, proto, dashIfEmpty(v.Ext)}
+		rows[i] = []string{fmt.Sprint(i + 1), v.Kind, dashIfEmpty(q), dashIfEmpty(v.Codec), size, audio, proto, dashIfEmpty(v.Ext)}
 	}
 	m.tbl.SetRows(rows)
 	m.tbl.SetCursor(0)
@@ -337,9 +331,7 @@ func (m *playground) onKey(msg tea.KeyMsg) tea.Cmd {
 				return m.d.Copy(v.URL)
 			}
 		default:
-			var cmd tea.Cmd
-			m.tbl, cmd = m.tbl.Update(msg)
-			return cmd
+			m.tbl.Key(k)
 		}
 	}
 	return nil
@@ -383,7 +375,47 @@ func (m *playground) resultView() string {
 		line += " " + ui.Badge.Render("cached")
 	}
 	head := ui.Bold.Render(ui.OneLine(ui.Deref(d.Title, "(untitled)"), maxInt(20, m.w-4)))
-	return "\n " + head + "\n " + line + "\n\n" + indent(m.tbl.View(), " ")
+	prefix := "\n " + head + "\n " + line + "\n\n"
+	m.gridY = 3 + strings.Count(prefix, "\n") // the input panel above is 3 lines tall
+	acts := m.acts.Render([]action{{"d", "Download"}, {"m", "MP3"}, {"c", "Copy link"}, {"esc", "New URL"}})
+	m.actsY = m.gridY + m.tbl.height + 1
+	return prefix + indent(m.tbl.View(), " ") + "\n\n " + acts
+}
+
+// Mouse: click a row to select it, click a button to act, wheel to scroll.
+func (m *playground) Mouse(msg tea.MouseMsg) tea.Cmd {
+	switch m.state {
+	case pgInput:
+		if isLeftClick(msg) && msg.Y <= 2 {
+			m.in.Focus()
+			return textinput.Blink
+		}
+	case pgResult:
+		if d := wheelDelta(msg); d != 0 {
+			m.tbl.Wheel(d)
+			return nil
+		}
+		if !isLeftClick(msg) {
+			return nil
+		}
+		if msg.Y == m.actsY {
+			if k, ok := m.acts.Hit(msg.X - 1); ok {
+				return m.onKey(keyMsg(k))
+			}
+			return nil
+		}
+		if row, ok := m.tbl.Click(msg.X-1, msg.Y-m.gridY); ok {
+			if row == m.tbl.Cursor() {
+				return m.onKey(keyMsg("d")) // a second click on the highlighted row downloads it
+			}
+			m.tbl.SetCursor(row)
+		}
+	case pgDownloading:
+		if isLeftClick(msg) && m.dl.cancel != nil {
+			return nil
+		}
+	}
+	return nil
 }
 
 func joinDot(parts ...string) string {

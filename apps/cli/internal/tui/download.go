@@ -23,6 +23,8 @@ type DownloadOptions struct {
 	Dest     string // file, directory, or empty for the current directory
 	Fallback string // file name when the gateway suggests none
 	Force    bool
+	// Unique saves "name (2).ext" instead of failing when the file exists (interactive use).
+	Unique bool
 }
 
 // DownloadResult is what was saved.
@@ -45,7 +47,11 @@ func Transfer(ctx context.Context, o DownloadOptions, onStart func(*api.Download
 	if onStart != nil {
 		onStart(s)
 	}
-	path, n, err := dl.Save(ctx, s, o.Dest, o.Fallback, o.Force, onProgress)
+	save := func() (string, int64, error) { return dl.Save(ctx, s, o.Dest, o.Fallback, o.Force, onProgress) }
+	if o.Unique {
+		save = func() (string, int64, error) { return dl.SaveUnique(ctx, s, o.Dest, o.Fallback, onProgress) }
+	}
+	path, n, err := save()
 	if err != nil {
 		return DownloadResult{Path: path, Bytes: n, Provider: s.Provider}, err
 	}

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -62,8 +61,11 @@ type accountsView struct {
 	loaded   bool
 	loading  bool
 	err      error
-	accTable table.Model
-	keyTable table.Model
+	accTable *grid
+	keyTable *grid
+
+	// where things were drawn last, for the mouse
+	leftW, keyX, keyY int
 
 	keys      []api.Key
 	usage     []api.UsageRow
@@ -90,52 +92,10 @@ func newAccounts(d Deps) *accountsView {
 	label.Placeholder = "prod"
 	label.CharLimit = 80
 	m := &accountsView{d: d, nameIn: name, labelIn: label}
-	m.accTable = table.New(table.WithColumns(m.accColumns(40)), table.WithFocused(true), table.WithHeight(10))
-	m.keyTable = table.New(table.WithColumns(m.keyColumns(60)), table.WithHeight(6))
-	styleTable(&m.accTable, true)
-	styleTable(&m.keyTable, false)
+	m.accTable = newGrid([]string{"NAME", "PLAN", "STATUS"}, []int{0, 6, 9})
+	m.keyTable = newGrid([]string{"LABEL", "PREFIX", "ENV", "STATE", "LAST USED"}, []int{0, 15, 4, 8, 9})
+	m.keyTable.Blur()
 	return m
-}
-
-func styleTable(t *table.Model, focused bool) {
-	s := table.DefaultStyles()
-	s.Header = s.Header.Bold(true).Foreground(ui.Muted).BorderStyle(lipgloss.NormalBorder()).BorderForeground(ui.Subtle).BorderBottom(true)
-	s.Cell = s.Cell.Padding(0, 1)
-	if focused {
-		s.Selected = lipgloss.NewStyle().Bold(true).Foreground(ui.OnAccent).Background(ui.Accent)
-		t.Focus()
-	} else {
-		s.Selected = lipgloss.NewStyle().Foreground(ui.Text).Underline(true)
-		t.Blur()
-	}
-	t.SetStyles(s)
-}
-
-// fitColumns lays columns out inside `inner` cells. Every cell has 1 cell of padding on each side
-// (see styleTable), which the table widget does not count in a column's width.
-func fitColumns(inner int, titles []string, fixed []int) []table.Column {
-	used := 0
-	for _, f := range fixed {
-		used += f
-	}
-	flex := maxInt(6, inner-used-2*len(titles))
-	cols := make([]table.Column, len(titles))
-	for i, t := range titles {
-		w := fixed[i]
-		if w == 0 {
-			w = flex
-		}
-		cols[i] = table.Column{Title: t, Width: w}
-	}
-	return cols
-}
-
-func (m *accountsView) accColumns(inner int) []table.Column {
-	return fitColumns(inner, []string{"NAME", "PLAN", "STATUS"}, []int{0, 6, 9})
-}
-
-func (m *accountsView) keyColumns(inner int) []table.Column {
-	return fitColumns(inner, []string{"LABEL", "PREFIX", "ENV", "STATE", "LAST USED"}, []int{0, 15, 4, 8, 9})
 }
 
 func (m *accountsView) Capturing() bool { return m.mode == modeNewAccount || m.mode == modeNewKey }
@@ -159,12 +119,8 @@ func (m *accountsView) SetSize(w, h int) {
 	m.w, m.h = w, h
 	leftW := maxInt(36, w*2/5)
 	rightW := w - leftW - 1
-	m.accTable.SetColumns(m.accColumns(leftW - 4))
-	m.accTable.SetWidth(leftW - 4)
-	m.accTable.SetHeight(maxInt(4, h-7))
-	m.keyTable.SetColumns(m.keyColumns(rightW - 4))
-	m.keyTable.SetWidth(rightW - 4)
-	m.keyTable.SetHeight(maxInt(3, minInt(8, h/3)))
+	m.accTable.SetSize(leftW-4, maxInt(5, h-5))
+	m.keyTable.SetSize(rightW-4, maxInt(5, minInt(10, h/3+2)))
 }
 
 func (m *accountsView) Init() tea.Cmd { return nil }
@@ -239,10 +195,10 @@ func (m *accountsView) fetchDetail() tea.Cmd {
 }
 
 func (m *accountsView) rebuildAccountRows(keepID string) {
-	rows := make([]table.Row, len(m.accs))
+	rows := make([][]string, len(m.accs))
 	cursor := 0
 	for i, a := range m.accs {
-		rows[i] = table.Row{ui.Truncate(a.Name, 60), a.PlanID, a.Status}
+		rows[i] = []string{ui.Truncate(a.Name, 60), a.PlanID, a.Status}
 		if a.ID == keepID {
 			cursor = i
 		}
@@ -255,9 +211,9 @@ func (m *accountsView) rebuildAccountRows(keepID string) {
 
 func (m *accountsView) rebuildKeyRows() {
 	now := m.d.Now()
-	rows := make([]table.Row, len(m.keys))
+	rows := make([][]string, len(m.keys))
 	for i, k := range m.keys {
-		rows[i] = table.Row{ui.Truncate(k.Label, 30), k.Prefix + "…", k.Environment, k.State(now), ui.AgoString(k.LastUsedAt, now)}
+		rows[i] = []string{ui.Truncate(k.Label, 30), k.Prefix + "…", k.Environment, k.State(now), ui.AgoString(k.LastUsedAt, now)}
 	}
 	m.keyTable.SetRows(rows)
 	if m.keyTable.Cursor() >= len(rows) {
@@ -409,9 +365,7 @@ func (m *accountsView) onKey(msg tea.KeyMsg) tea.Cmd {
 	// browse mode
 	switch k {
 	case "tab", "shift+tab":
-		m.pane = 1 - m.pane
-		styleTable(&m.accTable, m.pane == 0)
-		styleTable(&m.keyTable, m.pane == 1)
+		m.setPane(1 - m.pane)
 		return nil
 	case "r":
 		return m.reload("")
@@ -477,17 +431,67 @@ func (m *accountsView) onKey(msg tea.KeyMsg) tea.Cmd {
 	}
 
 	// navigation: forward to the focused table
-	var cmd tea.Cmd
 	if m.pane == 0 {
 		before := m.detailFor
-		m.accTable, cmd = m.accTable.Update(msg)
+		m.accTable.Key(k)
 		if sel := m.selected(); sel != nil && sel.ID != before {
-			return tea.Batch(cmd, m.fetchDetail())
+			return m.fetchDetail()
 		}
 	} else {
-		m.keyTable, cmd = m.keyTable.Update(msg)
+		m.keyTable.Key(k)
 	}
-	return cmd
+	return nil
+}
+
+func (m *accountsView) setPane(p int) {
+	m.pane = p
+	if p == 0 {
+		m.accTable.Focus()
+		m.keyTable.Blur()
+	} else {
+		m.keyTable.Focus()
+		m.accTable.Blur()
+	}
+}
+
+// Mouse: click an account or a key to select it, wheel to scroll the pane under the pointer.
+func (m *accountsView) Mouse(msg tea.MouseMsg) tea.Cmd {
+	if m.mode != modeBrowse || !m.loaded {
+		return nil
+	}
+	onLeft := msg.X < m.leftW
+	if d := wheelDelta(msg); d != 0 {
+		if onLeft {
+			m.setPane(0)
+			before := m.detailFor
+			m.accTable.Wheel(d)
+			if sel := m.selected(); sel != nil && sel.ID != before {
+				return m.fetchDetail()
+			}
+		} else {
+			m.setPane(1)
+			m.keyTable.Wheel(d)
+		}
+		return nil
+	}
+	if !isLeftClick(msg) {
+		return nil
+	}
+	if onLeft {
+		m.setPane(0)
+		if row, ok := m.accTable.Click(msg.X-2, msg.Y-2); ok {
+			m.accTable.SetCursor(row)
+			if sel := m.selected(); sel != nil && sel.ID != m.detailFor {
+				return m.fetchDetail()
+			}
+		}
+		return nil
+	}
+	m.setPane(1)
+	if row, ok := m.keyTable.Click(msg.X-m.keyX, msg.Y-m.keyY); ok {
+		m.keyTable.SetCursor(row)
+	}
+	return nil
 }
 
 func (m *accountsView) View() string {
@@ -499,6 +503,7 @@ func (m *accountsView) View() string {
 	}
 
 	leftW := maxInt(36, m.w*2/5)
+	m.leftW = leftW
 	rightW := m.w - leftW - 1
 	left := panelFocus(fmt.Sprintf("Accounts (%d)", m.page.Total), m.accTable.View(), leftW, m.h-2, m.pane == 0)
 	if len(m.accs) == 0 {
@@ -583,7 +588,10 @@ func (m *accountsView) detailView(width int) string {
 		}
 		usage = fmt.Sprintf("%d requests · %d cached · %d errors\n%s", req, cached, errs, ui.MutedText.Render(strings.Join(top, " · ")))
 	}
-	body := head + "\n" + info + "\n\n" + ui.Heading.Render(fmt.Sprintf("Keys (%d)", len(m.keys))) + "\n" + keys + "\n\n" + ui.Heading.Render("Last 7 days") + "\n" + usage
+	prefix := head + "\n" + info + "\n\n" + ui.Heading.Render(fmt.Sprintf("Keys (%d)", len(m.keys))) + "\n"
+	m.keyX = m.leftW + 1 + 2                 // left panel + gap + border and padding
+	m.keyY = 2 + strings.Count(prefix, "\n") // border + panel title, then the lines above the grid
+	body := prefix + keys + "\n\n" + ui.Heading.Render("Last 7 days") + "\n" + usage
 	return panelFocus("Details", body, width, m.h-2, m.pane == 1)
 }
 

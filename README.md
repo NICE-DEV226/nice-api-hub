@@ -85,6 +85,8 @@ ports (prints the env to export), then `npm run cli -w @nice-api-hub/gateway -- 
 | Endpoint | Auth | Purpose |
 |---|---|---|
 | `GET /v1/media?url=` | API key | Resolve media (platform auto-detected) |
+| `POST /v1/jobs` · `GET /v1/jobs/:id` | API key | Queue an extraction; get the result by polling or by signed webhook |
+| `GET /v1/account` | API key | Your plan, limits and webhook secret |
 | `GET /v1/download?url=&kind=&maxHeight=&audioFormat=` | API key | Stream the media as ONE playable file (merges video+audio, extracts MP3) |
 | `GET /v1/usage?days=` | API key | Your plan limits and recent usage |
 | `GET /v1/platforms` | none | Supported platforms + live status (`operational`/`degraded`/`down`/`unknown`) |
@@ -166,6 +168,48 @@ ffmpeg locked to a per-input protocol whitelist, a cap on concurrent transfers (
 limit and a size limit, and cleanup of ffmpeg when the client disconnects. There are no `Range` requests on the
 response and no resume; each transfer costs bandwidth and CPU, so size `DOWNLOAD_MAX_CONCURRENCY` accordingly.
 
+## Asynchronous jobs (`POST /v1/jobs`)
+
+Extraction takes 8 to 17 s with yt-dlp, which is too long to hold a request open. Submit a job, get `202` at once,
+then poll or receive a webhook.
+
+```bash
+curl -X POST https://api.example.com/v1/jobs -H "Authorization: Bearer $KEY" \
+  -H "Idempotency-Key: order-42" -H 'content-type: application/json' \
+  -d '{"url":"https://www.youtube.com/watch?v=aqz-KE-bpKQ","webhookUrl":"https://your.app/hooks/nah"}'
+# 202 {"data":{"id":"job_…","status":"queued",…}}   Location: /v1/jobs/job_…
+curl -H "Authorization: Bearer $KEY" https://api.example.com/v1/jobs/job_…
+```
+
+A job goes `queued → running → succeeded | failed`. On success `result` is the same object `/v1/media` returns; on failure
+`error` has the same stable `code`s as the synchronous API. Jobs and results are kept for `JOBS_TTL_SECONDS` (24 h).
+
+- **Idempotency**: repeat a submission with the same `Idempotency-Key` and you get the original job back
+  (`Idempotent-Replayed: true`), so retrying a timed-out `POST` never creates duplicates.
+- **Backpressure**: at most `JOBS_MAX_PENDING_PER_ACCOUNT` unfinished jobs per account, then `429 too_many_jobs`.
+- **Isolation**: another account's job is indistinguishable from a missing one (404).
+- **Webhooks** carry `{"event":"job.completed"|"job.failed","data":<job>}` and are signed. Get your secret from
+  `GET /v1/account` (operators can rotate it with `POST /admin/v1/accounts/:id/webhook-secret/rotate`).
+  `X-NAH-Signature: t=<unix seconds>,v1=<hex>` where `v1 = HMAC_SHA256(secret, "<t>.<raw body>")`. Verify against the RAW body,
+  compare in constant time, and reject timestamps older than 5 minutes:
+
+  ```js
+  import { createHmac, timingSafeEqual } from 'node:crypto';
+  function verify(secret, header, rawBody, toleranceSec = 300) {
+    const { t, v1 } = Object.fromEntries(header.split(',').map((p) => p.split('=')));
+    if (Math.abs(Date.now() / 1000 - Number(t)) > toleranceSec) return false;
+    const mac = createHmac('sha256', secret).update(`${t}.${rawBody}`).digest();
+    const got = Buffer.from(v1 ?? '', 'hex');
+    return got.length === mac.length && timingSafeEqual(got, mac);
+  }
+  ```
+
+  Failed deliveries are retried with backoff (default: immediately, 30 s, 2 min, 10 min, 1 h; `JOBS_WEBHOOK_BACKOFF_MS`).
+  Each attempt has its own `X-NAH-Delivery` id. Delivery is **at-least-once**: make your receiver idempotent (dedupe on the job id).
+  The receiver URL is refused if it points at a private network, and redirects are never followed.
+- **Reliability**: the queue lives in Redis with atomic claims. If a worker dies mid-job, a sweeper re-queues the job
+  (up to 3 runs, then `failed` with `job_stalled`). Any API replica processes jobs; add replicas to add throughput.
+
 ## Status
 
 Every provider below was exercised against the real upstream on 2026-09-19 (`npm run probe`, all green), and its
@@ -217,7 +261,7 @@ platform in `providers/platforms.ts`, add a `createYtDlpProvider(...)` line in `
 
 Other gaps:
 
-- No asynchronous job endpoint yet (`POST /v1/jobs` with webhook callback) for the slowest extractions.
+- Jobs cover extraction only; a finished job returns links, use `/v1/download` to stream the file.
 - Billing is deliberately out of scope: plans are entitlements only.
 - The Docker image has **not** been built in this environment: the daemon runs but the current user is not in the
   `docker` group. CI builds it and runs `yt-dlp --version && ffmpeg -version` inside it.

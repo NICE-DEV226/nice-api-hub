@@ -123,6 +123,12 @@ export async function adminRoutes(
     async (req) => ({ data: await accounts.updateAccount(req.params.id, req.body) }),
   );
 
+  r.post(
+    '/accounts/:id/webhook-secret/rotate',
+    { schema: { tags: ['Management'], security, params: Type.Object({ id: Uuid }) } },
+    async (req) => ({ data: await accounts.rotateWebhookSecret(req.params.id) }),
+  );
+
   r.get(
     '/accounts/:id/keys',
     { schema: { tags: ['Management'], security, params: Type.Object({ id: Uuid }) } },

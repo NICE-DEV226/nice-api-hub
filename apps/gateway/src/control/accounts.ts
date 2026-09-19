@@ -21,6 +21,8 @@ export interface AccountRow {
   planId: string;
   status: 'active' | 'suspended';
   createdAt: string;
+  /** Signs webhook deliveries (see jobs/webhook.ts). */
+  webhookSecret: string;
 }
 
 export interface KeySummary {
@@ -53,6 +55,7 @@ function toAccount(r: any): AccountRow {
     planId: r.plan_id,
     status: r.status,
     createdAt: r.created_at.toISOString(),
+    webhookSecret: r.webhook_secret,
   };
 }
 
@@ -155,6 +158,17 @@ export class AccountsService {
     if (!rows[0]) throw errors.notFound('Account not found.');
     await this.invalidateWhere('k.account_id = $1', [id]);
     await this.audit('account.update', 'account', id, patch);
+    return toAccount(rows[0]);
+  }
+
+  async rotateWebhookSecret(id: string): Promise<AccountRow> {
+    const { rows } = await this.db.query(
+      `UPDATE accounts SET webhook_secret = replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), updated_at = now()
+        WHERE id = $1 RETURNING *`,
+      [id],
+    );
+    if (!rows[0]) throw errors.notFound('Account not found.');
+    await this.audit('account.webhook_secret_rotate', 'account', id, null);
     return toAccount(rows[0]);
   }
 

@@ -53,6 +53,18 @@ export function createMetrics() {
     labelNames: ['provider'] as const,
     registers: [registry],
   });
+  const jobs = new Counter({
+    name: 'jobs_total',
+    help: 'Asynchronous jobs by final status',
+    labelNames: ['status'] as const,
+    registers: [registry],
+  });
+  const webhookDeliveries = new Counter({
+    name: 'webhook_deliveries_total',
+    help: 'Webhook delivery attempts by outcome',
+    labelNames: ['outcome'] as const,
+    registers: [registry],
+  });
   const usageBuffered = new Gauge({
     name: 'usage_buffer_entries',
     help: 'Usage counters waiting to be flushed to Postgres',
@@ -74,6 +86,8 @@ export function createMetrics() {
     rateLimited,
     rateLimiterErrors,
     circuitState,
+    jobs,
+    webhookDeliveries,
     usageBuffered,
     usageFlushErrors,
   };

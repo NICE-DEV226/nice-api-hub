@@ -19,6 +19,7 @@ export function testConfig(overrides: Record<string, string> = {}): Config {
     ADMIN_TOKEN,
     USAGE_FLUSH_INTERVAL_MS: '3600000',
     CACHE_TTL_SECONDS: '60',
+    JOBS_ENABLED: 'false',
     ...overrides,
   });
 }

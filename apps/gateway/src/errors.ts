@@ -31,6 +31,11 @@ export const errors = {
 
   conflict: (code: string, detail: string) => new AppError(409, code, detail),
 
+  tooManyJobs: (max: number) =>
+    new AppError(429, 'too_many_jobs', `You already have ${max} pending jobs. Wait for some to finish.`, {
+      headers: { 'retry-after': '5' },
+    }),
+
   blockedUrl: (detail: string) => new AppError(422, 'blocked_url', detail),
 
   noSuchMedia: (detail: string) => new AppError(422, 'no_such_media', detail),

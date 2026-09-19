@@ -1,7 +1,8 @@
 import pino from 'pino';
 import { loadConfig } from './config.js';
 import { createRedis } from './infra/redis.js';
-import { DEFAULT_PROVIDERS } from './http/app.js';
+import { buildDefaultProviders, ytDlpOptionsFrom } from './http/app.js';
+import { detectYtDlp } from './providers/impl/ytdlp.js';
 import { startProbes, ProbeStore } from './probes.js';
 import { PLATFORMS } from './providers/platforms.js';
 import { ProviderRegistry } from './providers/registry.js';
@@ -13,7 +14,10 @@ const redis = createRedis(config.REDIS_URL);
 await redis.connect();
 
 const probes = startProbes({
-  registry: new ProviderRegistry(DEFAULT_PROVIDERS, PLATFORMS),
+  registry: new ProviderRegistry(
+    buildDefaultProviders(config.YTDLP_ENABLED && (await detectYtDlp(config.YTDLP_PATH)) ? ytDlpOptionsFrom(config) : null),
+    PLATFORMS,
+  ),
   store: new ProbeStore(redis),
   redis,
   config,

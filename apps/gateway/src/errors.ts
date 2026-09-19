@@ -31,6 +31,12 @@ export const errors = {
 
   conflict: (code: string, detail: string) => new AppError(409, code, detail),
 
+  blockedUrl: (detail: string) => new AppError(422, 'blocked_url', detail),
+
+  noSuchMedia: (detail: string) => new AppError(422, 'no_such_media', detail),
+
+  downloadFailed: (detail: string) => new AppError(502, 'download_failed', detail),
+
   unsupportedPlatform: (detail: string) => new AppError(422, 'unsupported_platform', detail),
 
   contentUnavailable: (detail = 'The requested media is unavailable or private.') =>

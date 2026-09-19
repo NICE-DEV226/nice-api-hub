@@ -12,6 +12,12 @@ export const VariantSchema = Type.Object(
     mime: Type.Optional(Type.String()),
     hasAudio: Type.Optional(Type.Boolean()),
     protocol: Type.Optional(Type.Union([Type.Literal('direct'), Type.Literal('hls')])),
+    id: Type.Optional(Type.String()),
+    codec: Type.Optional(Type.String()),
+    fps: Type.Optional(Type.Number()),
+    bitrateKbps: Type.Optional(Type.Number()),
+    sizeBytes: Type.Optional(Type.Number()),
+    headers: Type.Optional(Type.Record(Type.String(), Type.String())),
   },
   { $id: 'Variant' },
 );

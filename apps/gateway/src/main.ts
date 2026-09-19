@@ -1,4 +1,5 @@
-import { buildApp } from './http/app.js';
+import { buildApp, ytDlpOptionsFrom } from './http/app.js';
+import { detectYtDlp } from './providers/impl/ytdlp.js';
 import { loadConfig } from './config.js';
 import { createDb } from './infra/db.js';
 import { createRedis } from './infra/redis.js';
@@ -11,7 +12,15 @@ await redis.connect().catch(() => {
   // The API degrades gracefully without Redis; /readyz will report it.
 });
 
-const { app, usage, registry, probeStore } = await buildApp({ config, db, redis });
+const ytdlpVersion = config.YTDLP_ENABLED ? await detectYtDlp(config.YTDLP_PATH) : null;
+const { app, usage, registry, probeStore } = await buildApp({
+  config,
+  db,
+  redis,
+  ytdlp: ytdlpVersion ? ytDlpOptionsFrom(config) : null,
+});
+if (ytdlpVersion) app.log.info({ version: ytdlpVersion }, 'yt-dlp enabled');
+else app.log.warn('yt-dlp not available: YouTube, Instagram, Facebook, SoundCloud, LinkedIn and Pinterest are disabled');
 
 let probes: ReturnType<typeof startProbes> | null = null;
 if (config.PROBES_ENABLED) {

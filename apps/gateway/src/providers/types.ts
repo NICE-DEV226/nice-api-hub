@@ -14,6 +14,14 @@ export interface Variant {
   hasAudio?: boolean;
   /** `direct`: a file you can GET. `hls`: an .m3u8 playlist that needs a player / ffmpeg. */
   protocol?: 'direct' | 'hls';
+  /** Upstream format id (yt-dlp `format_id`); stable enough to request a specific rendition. */
+  id?: string;
+  codec?: string;
+  fps?: number;
+  bitrateKbps?: number;
+  sizeBytes?: number;
+  /** Request headers the CDN expects (User-Agent, Referer…). Cookies are never exposed. */
+  headers?: Record<string, string>;
 }
 
 export interface MediaDraft {
@@ -50,6 +58,8 @@ export interface Provider {
   readonly priority: number;
   /** Cap on simultaneous calls to this upstream (default: global setting). Use 1 for fragile free APIs. */
   readonly maxConcurrency?: number;
+  /** Per-attempt timeout (default: the global UPSTREAM_TIMEOUT_MS). Local extractors are slower than JSON APIs. */
+  readonly timeoutMs?: number;
   fetch(ctx: FetchContext): Promise<MediaDraft>;
 }
 

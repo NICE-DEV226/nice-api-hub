@@ -44,6 +44,24 @@ const ConfigSchema = Type.Object({
   }),
   USAGE_FLUSH_INTERVAL_MS: Type.Integer({ default: 5000, minimum: 100 }),
 
+  /** yt-dlp extraction engine (YouTube and a long tail of platforms). Disabled automatically if the binary is missing. */
+  YTDLP_ENABLED: Type.Boolean({ default: true }),
+  YTDLP_PATH: Type.String({ default: 'yt-dlp' }),
+  YTDLP_JS_RUNTIME: Type.String({ default: 'node' }),
+  /** Netscape cookies file: helps with age-gated / login-walled content and bot checks. */
+  YTDLP_COOKIES_FILE: Type.String({ default: '' }),
+  /** Outbound proxy for extraction, e.g. a residential proxy when datacenter IPs are blocked. */
+  YTDLP_PROXY: Type.String({ default: '' }),
+
+  /** GET /v1/download: the gateway fetches, merges (ffmpeg) and streams the media itself. */
+  DOWNLOAD_ENABLED: Type.Boolean({ default: true }),
+  FFMPEG_PATH: Type.String({ default: 'ffmpeg' }),
+  DOWNLOAD_MAX_CONCURRENCY: Type.Integer({ default: 4, minimum: 1 }),
+  DOWNLOAD_MAX_SECONDS: Type.Integer({ default: 900, minimum: 10 }),
+  DOWNLOAD_MAX_BYTES: Type.Integer({ default: 1_073_741_824, minimum: 1_048_576 }),
+  /** Tests only. Never enable in production: it disables the SSRF guard. */
+  DOWNLOAD_ALLOW_PRIVATE_HOSTS: Type.Boolean({ default: false }),
+
   PROBES_ENABLED: Type.Boolean({ default: false }),
   PROBE_INTERVAL_SECONDS: Type.Integer({ default: 300, minimum: 10 }),
   /** JSON object mapping a platform id to a known-good public URL used by synthetic probes. */

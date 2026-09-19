@@ -17,6 +17,10 @@ x-gateway: &gateway
     TRUST_PROXY: ${TRUST_PROXY:-false}
     LOG_LEVEL: ${LOG_LEVEL:-info}
     PROBE_URLS: ${PROBE_URLS:-}
+    YTDLP_PROXY: ${YTDLP_PROXY:-}
+    DOWNLOAD_MAX_CONCURRENCY: ${DOWNLOAD_MAX_CONCURRENCY:-4}
+  # ffmpeg / yt-dlp children must be reaped and signalled properly.
+  init: true
   networks: [internal]
 
 services:

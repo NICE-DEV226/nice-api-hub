@@ -25,7 +25,17 @@ RUN npm ci --workspace=@nice-api-hub/gateway --omit=dev \
 
 # ---- runtime ------------------------------------------------------------------
 FROM base AS runtime
-ENV NODE_ENV=production PORT=3000
+ENV NODE_ENV=production PORT=3000 XDG_CACHE_HOME=/tmp/.cache
+
+# Extraction (yt-dlp) and media packaging (ffmpeg). yt-dlp is pinned for reproducible builds, but
+# YouTube changes often: rebuild regularly with a newer --build-arg YTDLP_VERSION (see the daily probe workflow).
+ARG YTDLP_VERSION=2026.8.19
+RUN apk add --no-cache python3 py3-pip ffmpeg ca-certificates \
+ && python3 -m venv /opt/yt-dlp \
+ && /opt/yt-dlp/bin/pip install --no-cache-dir "yt-dlp==${YTDLP_VERSION}" \
+ && ln -s /opt/yt-dlp/bin/yt-dlp /usr/local/bin/yt-dlp \
+ && yt-dlp --version && ffmpeg -version | head -1
+
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/gateway/node_modules ./apps/gateway/node_modules
 COPY --from=build /app/apps/gateway/dist ./apps/gateway/dist

@@ -4,6 +4,13 @@ import { errors } from '../errors.js';
 /** Query parameters that never change which content a URL points to. */
 const TRACKING_PARAMS = /^(utm_.+|fbclid|gclid|igshid|si|feature|ref|ref_src|ref_url|is_from_webapp|sender_device|_t|_r|share_.+|checksum|sec_user_id|u_code|refer|lang)$/i;
 
+/** Drop the query string except for the listed parameters (which identify the content). */
+function keepOnly(url: URL, ...allowed: string[]): void {
+  for (const key of [...url.searchParams.keys()]) {
+    if (!allowed.includes(key)) url.searchParams.delete(key);
+  }
+}
+
 function stripTracking(url: URL): void {
   for (const key of [...url.searchParams.keys()]) {
     if (TRACKING_PARAMS.test(key)) url.searchParams.delete(key);
@@ -66,6 +73,36 @@ export const PLATFORMS: readonly Platform[] = [
       }
       url.search = '';
     },
+  },
+  {
+    id: 'instagram',
+    displayName: 'Instagram',
+    hosts: ['instagram.com', 'instagr.am'],
+    canonicalize: (url) => keepOnly(url, 'img_index'),
+  },
+  {
+    id: 'facebook',
+    displayName: 'Facebook',
+    hosts: ['facebook.com', 'fb.watch', 'fb.com'],
+    canonicalize: (url) => keepOnly(url, 'v', 'story_fbid', 'id'),
+  },
+  {
+    id: 'soundcloud',
+    displayName: 'SoundCloud',
+    hosts: ['soundcloud.com', 'snd.sc'],
+    canonicalize: (url) => keepOnly(url, 'secret_token'),
+  },
+  {
+    id: 'linkedin',
+    displayName: 'LinkedIn',
+    hosts: ['linkedin.com'],
+    canonicalize: (url) => keepOnly(url),
+  },
+  {
+    id: 'pinterest',
+    displayName: 'Pinterest',
+    hosts: ['pinterest.com', 'pin.it'],
+    canonicalize: (url) => keepOnly(url),
   },
 ];
 

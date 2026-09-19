@@ -110,7 +110,7 @@ export class MediaService {
         const draft = await this.bulkheadFor(provider).run(() =>
           provider.fetch({
             url: target.url,
-            signal: AbortSignal.timeout(this.deps.options.upstreamTimeoutMs),
+            signal: AbortSignal.timeout(provider.timeoutMs ?? this.deps.options.upstreamTimeoutMs),
           }),
         );
         breaker.onSuccess();

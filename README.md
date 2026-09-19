@@ -85,6 +85,7 @@ ports (prints the env to export), then `npm run cli -w @nice-api-hub/gateway -- 
 | Endpoint | Auth | Purpose |
 |---|---|---|
 | `GET /v1/media?url=` | API key | Resolve media (platform auto-detected) |
+| `GET /v1/download?url=&kind=&maxHeight=&audioFormat=` | API key | Stream the media as ONE playable file (merges video+audio, extracts MP3) |
 | `GET /v1/usage?days=` | API key | Your plan limits and recent usage |
 | `GET /v1/platforms` | none | Supported platforms + live status (`operational`/`degraded`/`down`/`unknown`) |
 | `/admin/v1/*` | admin token | Plans, accounts, keys (create / revoke / rotate with grace period), usage, audit |
@@ -112,7 +113,7 @@ Default plans (editable via `PUT /admin/v1/plans/:id`):
 
 1. Platform (host allowlist + canonicalisation): `apps/gateway/src/providers/platforms.ts`.
 2. Provider: implement `Provider` (`fetch(ctx) → MediaDraft`, throw `ProviderError` with the right `kind`)
-   in `providers/impl/`, register it in `DEFAULT_PROVIDERS` (`http/app.ts`).
+   in `providers/impl/`, register it in `buildDefaultProviders` (`http/app.ts`).
    Several providers per platform give you failover for free; `priority` decides the order.
 3. Put the HTML/JSON → model mapping in a pure `parse…` function and unit-test it against a captured fixture.
 4. Add a known-good URL to `PROBE_URLS` so its health shows up in `/v1/platforms`.
@@ -139,41 +140,87 @@ Tests run against real Postgres and Redis (no mocks for the data plane): atomic 
 concurrency, cache invalidation on revoke/plan change, quota sharing across keys, failover,
 fail-open/closed behaviour with Redis down.
 
+## Downloads (`GET /v1/download`)
+
+`/v1/media` returns links. For YouTube those links are not enough, for two reasons found while testing on the
+real service: YouTube no longer serves combined audio+video files (0 of 53 formats), and its links are bound to the
+IP that requested them. `/v1/download` solves both: the gateway fetches the renditions itself, merges them with
+ffmpeg and streams **one file** back.
+
+```bash
+# best MP4 up to 720p, video and audio merged
+curl -H "Authorization: Bearer $KEY" -o clip.mp4 \
+  "https://api.example.com/v1/download?url=https://www.youtube.com/watch?v=aqz-KE-bpKQ&maxHeight=720"
+# audio only, as MP3
+curl -H "Authorization: Bearer $KEY" -o song.mp3 \
+  "https://api.example.com/v1/download?url=…&kind=audio&audioFormat=mp3"
+```
+
+Measured against the real services (YouTube, 10 min 35 s video at 360p, from a home connection):
+extraction 11 s, then 28.5 MB downloaded, merged and streamed in about 30 s. The gateway downloads in 8 MiB `Range`
+chunks because CDNs throttle a single long GET to playback speed (measured: 57 KB/s for one GET vs 5.7 MB/s per
+ranged request; the first implementation took 280 s for 540 s of video).
+
+Guard rails: SSRF check on every media URL and redirect hop (private, loopback and link-local addresses refused),
+ffmpeg locked to a per-input protocol whitelist, a cap on concurrent transfers (`503` + `Retry-After`), a hard time
+limit and a size limit, and cleanup of ffmpeg when the client disconnects. There are no `Range` requests on the
+response and no resume; each transfer costs bandwidth and CPU, so size `DOWNLOAD_MAX_CONCURRENCY` accordingly.
+
 ## Status
 
-Verified end to end against the real upstream services (2026-09-19, `npm run probe`):
+Every provider below was exercised against the real upstream on 2026-09-19 (`npm run probe`, all green), and its
+parser is tested on real captured output (`test/fixtures`).
 
-| Platform | Provider | Notes |
-|---|---|---|
-| TikTok | `tikwm` (JSON API) | HD/SD without watermark, audio, photo posts. Free API allows ~1 req/s, so it runs with concurrency 1 |
-| X / Twitter | `twmate` (HTML) | Every rendition, best first, with width/height |
-| Bluesky | official AT Protocol AppView | Documented public API, no scraping; video is an HLS playlist |
-| Dailymotion | player metadata | HLS playlist |
+| Platform | Providers (in failover order) |
+|---|---|
+| YouTube | yt-dlp |
+| TikTok | tikwm (JSON API, concurrency 1) → yt-dlp |
+| X / Twitter | twmate → yt-dlp |
+| Bluesky | official AT Protocol AppView → yt-dlp |
+| Dailymotion | player metadata → yt-dlp |
+| Instagram, Facebook, SoundCloud, LinkedIn, Pinterest | yt-dlp |
 
-`npm run probe` calls each provider with a real public URL and exits non-zero on failure. Run it after every
-deploy and on a schedule. Parsers are unit-tested against **real captured responses** (`test/fixtures`), plus a few
-clearly labelled synthetic ones for cases with no live sample (photo posts, image embeds).
+yt-dlp is the engine behind most of this: one actively maintained extractor instead of a dozen scrapers of
+ad-supported sites that break silently. Dedicated fast providers stay in front where they are reliable, and requests
+fail over to yt-dlp automatically. Extraction with yt-dlp takes 8 to 17 s here (Python start-up, YouTube's signature
+challenge), so results are cached and callers need generous timeouts.
 
-Not available yet, and why (found while testing on real upstreams, not assumed):
+What was found dead or unusable (and is therefore not offered):
 
-- **YouTube**: the previous provider (`vidfly`) no longer answers, and every public Piped/Invidious instance is
-  blocked or disabled. Reliable YouTube extraction needs a maintained extractor (yt-dlp) plus cookies or a
-  residential proxy. Decision needed; the platform is declared but returns `unsupported_platform` until then.
-- **TikTok via `tikdownloader.io`**: removed. It sits behind a Cloudflare managed challenge (`403 Just a moment…`)
-  and cannot be called server-side. The gateway does not try to defeat anti-bot challenges.
-- **Reddit**: `reddit.com/.json` answers 403 from this network; the third-party fallback needs a real post to validate.
-- **Kuaishou**: the previous upstream (`kuaishouvideodownloader.net`) does not respond at all.
-- **Tumblr**: the previous upstream endpoint (`tumbleclip.com/api/tumblr`) now returns 404.
-- **Not yet verified against live content** (upstream is alive, but a working sample URL is needed to port it):
-  Pinterest, LinkedIn, Snapchat, CapCut, Douyin, SoundCloud, Spotify, Terabox, Threads, Instagram/Facebook.
-  The old scrapers are in git history (`git show 49efecd:services/<name>Service.js`).
+- `tikdownloader.io` (was the TikTok provider): Cloudflare managed challenge, unusable server-side. The gateway does
+  not try to defeat anti-bot challenges.
+- `vidfly` (was the YouTube provider): API gone. Public Piped/Invidious instances: all blocked or disabled.
+- Reddit: `reddit.com/.json` answers 403 from the test network. Kuaishou upstream: no response. Tumblr upstream
+  (`tumbleclip.com`): 404.
+- Spotify: not offered. Its streams are DRM-protected; "downloaders" work around that, which this project does not do.
+
+Not verified yet (no real sample URL tested): Reddit via yt-dlp, Tumblr with a genuine video post, Snapchat Spotlight,
+Threads, CapCut, Douyin, Kuaishou, Terabox. yt-dlp has extractors for several of them: to add one, declare the
+platform in `providers/platforms.ts`, add a `createYtDlpProvider(...)` line in `http/app.ts`, add its URL to
+`scripts/probe.ts`, and keep it only if the probe passes.
+
+### Things to know before running this for real
+
+- **YouTube blocks many datacenter IPs** ("Sign in to confirm you're not a bot"). It worked from a residential
+  connection; from a cloud VM expect failures. Options: `YTDLP_PROXY` (residential/ISP proxy) or `YTDLP_COOKIES_FILE`.
+  The gateway reports this as `blocked` and fails over; it does not attempt to bypass it.
+- **Keep yt-dlp current.** YouTube breaks extractors regularly and fixes land in hours. The image pins a version
+  (`--build-arg YTDLP_VERSION=…`); rebuild often. The `Provider probe` workflow runs daily and fails when a provider breaks.
+- **Merging reads video and audio through pipes**, so inputs must be streamable (fragmented MP4 or WebM, which is what
+  YouTube serves). A non-fragmented MP4 whose index sits at the end cannot be merged that way; complete files are
+  proxied unchanged instead.
+- **HLS inputs are opened by ffmpeg itself**, so a hostile playlist could point at internal hosts. Deny private egress
+  at the network level (firewall / security group) in production; the in-process check cannot defend against DNS rebinding.
+- yt-dlp reports session cookies for some CDNs (TikTok). The gateway deliberately never exposes or forwards them, so
+  `/v1/download` through the yt-dlp fallback for TikTok may be refused by the CDN; the primary TikTok provider does not need them.
+- Legal: see below. Serving YouTube content is against YouTube's terms; that is a business decision, not a technical one.
 
 Other gaps:
 
-- No asynchronous job endpoint yet (`POST /v1/jobs` with webhook callback) for slow extractions
-  (upstreams take 2 to 7 s here, so callers should use generous timeouts).
+- No asynchronous job endpoint yet (`POST /v1/jobs` with webhook callback) for the slowest extractions.
 - Billing is deliberately out of scope: plans are entitlements only.
-- The Docker image build has not been exercised in this environment (no Docker daemon); CI builds it.
+- The Docker image has **not** been built in this environment: the daemon runs but the current user is not in the
+  `docker` group. CI builds it and runs `yt-dlp --version && ffmpeg -version` inside it.
 
 ## Legal note
 

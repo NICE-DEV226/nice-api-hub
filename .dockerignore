@@ -1,0 +1,10 @@
+.git
+**/node_modules
+**/dist
+**/.dev-data
+**/.env
+# legacy v1 code, not part of the gateway image
+apps/api
+apps/web
+packages
+docs

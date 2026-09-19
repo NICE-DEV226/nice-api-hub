@@ -1,231 +1,162 @@
-<p align="center">
-  <img src="apps/web/public/logo.png" alt="NICE-API'HUB Logo" width="120" height="120">
-</p>
+# NICE-API'HUB
 
-<h1 align="center">NICE-API'HUB</h1>
-
-<p align="center">
-  <strong>Universal Media Downloader API Platform</strong>
-</p>
-
-<p align="center">
-  <a href="#features">Features</a> •
-  <a href="#tech-stack">Tech Stack</a> •
-  <a href="#getting-started">Getting Started</a> •
-  <a href="#api-documentation">API Docs</a> •
-  <a href="#deployment">Deployment</a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
-  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js">
-  <img src="https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express">
-  <img src="https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB">
-  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis">
-</p>
-
----
-
-## ✨ Features
-
-- **20+ Platforms Supported** - TikTok, YouTube, Instagram, Twitter, Facebook, Spotify, and more
-- **RESTful API** - Clean, well-documented endpoints
-- **Multiple Plans** - FREE, BASIC, PRO, ENTERPRISE with different rate limits
-- **API Key Management** - Generate and manage multiple API keys
-- **Real-time Analytics** - Track usage, latency, and errors
-- **Admin Dashboard** - Complete platform management with PIN security
-- **Payment Integration** - GeniusPay (Mobile Money & Cards)
-- **Health Monitoring** - Automatic endpoint health tracking
-- **Rate Limiting** - Redis-based with per-plan limits
-
-## 🛠 Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | Next.js 15, React 19, TypeScript, Tailwind CSS |
-| **Backend** | Express.js, TypeScript, Node.js |
-| **Database** | MongoDB Atlas, Prisma ORM |
-| **Cache** | Redis |
-| **Auth** | Google OAuth 2.0, JWT |
-| **Payments** | GeniusPay |
-| **Monorepo** | Turborepo |
-
-## 📁 Project Structure
+API-first media extraction gateway. One authenticated, rate-limited, cached endpoint in front of
+interchangeable upstream providers, with automatic failover.
 
 ```
-nice-api-hub/
-├── apps/
-│   ├── api/          # Express backend
-│   │   ├── src/
-│   │   │   ├── modules/      # Feature modules
-│   │   │   ├── middleware/   # Express middleware
-│   │   │   ├── services/     # Business logic
-│   │   │   └── utils/        # Utilities
-│   │   └── prisma/           # Database schema
-│   └── web/          # Next.js frontend
-│       └── src/
-│           ├── app/          # App router pages
-│           └── components/   # React components
-├── packages/
-│   └── database/     # Shared Prisma client
-└── docs/             # Documentation
+GET /v1/media?url=https://www.tiktok.com/@user/video/123
+Authorization: Bearer nah_live_…
 ```
 
-## 🚀 Getting Started
+```jsonc
+{
+  "data": {
+    "platform": "tiktok",
+    "sourceUrl": "https://www.tiktok.com/@user/video/123",
+    "title": "…", "author": null, "thumbnail": "https://…", "durationSeconds": null,
+    "variants": [
+      { "kind": "video", "quality": "hd", "ext": "mp4", "mime": "video/mp4", "hasAudio": true, "url": "https://…" },
+      { "kind": "audio", "ext": "mp3", "mime": "audio/mpeg", "url": "https://…" }
+    ],
+    "provider": "tikdownloader",
+    "fetchedAt": "2026-09-19T15:00:00.000Z"
+  },
+  "meta": { "requestId": "…", "cached": false, "tookMs": 812 }
+}
+```
 
-### Prerequisites
+The response shape is identical for every platform and every provider.
 
-- Node.js 18+
-- MongoDB Atlas account
-- Redis (local or cloud)
-- Google Cloud Console project (for OAuth)
+## Architecture
 
-### Installation
+```
+                         ┌──────────────────────── gateway (stateless, N replicas) ────────────────────────┐
+ client ── Bearer key ──▶│ auth ─▶ rate limit ─▶ platform allowlist ─▶ cache ─▶ single-flight ─▶ providers │
+                         │  │          │                                  │                        │        │
+                         │  ▼          ▼                                  ▼                        ▼        │
+                         │ Redis     Redis (Lua, atomic)               Redis              circuit breaker   │
+                         │ (60 s)    GCRA + daily quota                (short TTL)        + bulkhead        │
+                         └───────┬─────────────────────────────────────────────────────────────┬──────────┘
+                                 │ miss                                                          │
+                              Postgres  ◀── usage: batched UPSERTs, off the hot path             ▼
+                        (accounts, plans, keys,                                   upstream A ─ fallback ─ B
+                         usage_daily, audit_log)
+ operator ── admin token ──▶ /admin/v1  (accounts, plans, keys: create / revoke / rotate)
+ worker ── synthetic probes ──▶ Redis ──▶ public GET /v1/platforms
+```
+
+Design decisions worth knowing:
+
+| Concern | Decision | Why |
+|---|---|---|
+| Hot path | Never touches Postgres on a warm request | Keys resolve from Redis; usage is buffered and flushed in batches |
+| Quotas | Per **account**, not per key | Extra keys can't multiply a customer's allowance |
+| Rate limiting | GCRA + daily counter in one Lua script | Atomic, O(1), exact under concurrency, server-side clock |
+| Provider faults | Rolling-window circuit breaker + per-provider bulkhead | A dead or slow upstream degrades only itself and is not hammered |
+| Failure semantics | "Content gone" ≠ "provider broken" | Dead links don't trip breakers and are negatively cached |
+| Health | Synthetic probes + breakers, never customer traffic | Clients can't fake an outage by sending bad requests |
+| Redis outage | Configurable `RATE_LIMIT_FAIL_MODE` (default `open`) | Availability vs. strict enforcement is the operator's call |
+| Keys | `nah_<env>_<192-bit random>`, stored as HMAC-SHA256 with a server pepper | A database dump alone is useless |
+| Errors | RFC 9457 `application/problem+json`, stable `code`s | Machine-readable, no stack traces, always a `requestId` |
+| Input | Host allowlist per platform, URL canonicalisation | Not an open relay; equivalent URLs share a cache entry |
+
+## Quick start
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/nice-api-hub.git
-cd nice-api-hub
+cp apps/gateway/.env.example .env      # fill KEY_PEPPER, ADMIN_TOKEN, POSTGRES_PASSWORD (openssl rand -base64 48)
+docker compose up -d --build           # postgres, redis, migrate (one-shot), api, worker
 
-# Install dependencies
-npm install
-
-# Setup environment variables
-cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env
-
-# Generate Prisma client
-npm run db:generate
-
-# Push database schema
-npm run db:push
-
-# Start development servers
-npm run dev
+# Create a customer and issue a key (shown once)
+curl -s -X POST localhost:3000/admin/v1/accounts \
+  -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"Acme","planId":"pro"}'
+curl -s -X POST localhost:3000/admin/v1/accounts/<id>/keys \
+  -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"label":"prod"}'
 ```
 
-### Environment Variables
+Interactive docs: `/docs`. Machine-readable spec: `/openapi.json`.
 
-#### Backend (`apps/api/.env`)
+Without Docker: `apps/gateway/scripts/dev-services.sh start` launches throwaway Postgres + Redis on high
+ports (prints the env to export), then `npm run cli -w @nice-api-hub/gateway -- migrate` and `npm run dev`.
 
-```env
-# Server
-NODE_ENV=development
-PORT=3001
+## API
 
-# Database
-DATABASE_URL=mongodb+srv://...
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `GET /v1/media?url=` | API key | Resolve media (platform auto-detected) |
+| `GET /v1/usage?days=` | API key | Your plan limits and recent usage |
+| `GET /v1/platforms` | none | Supported platforms + live status (`operational`/`degraded`/`down`/`unknown`) |
+| `/admin/v1/*` | admin token | Plans, accounts, keys (create / revoke / rotate with grace period), usage, audit |
+| `GET /healthz` · `/readyz` | none | Liveness · readiness (Postgres + Redis) |
+| `GET /metrics` | metrics token | Prometheus. In production only exposed when `METRICS_TOKEN` is set |
 
-# Redis
-REDIS_URL=redis://localhost:6379
+Auth: `Authorization: Bearer <key>` or `X-API-Key: <key>`.
 
-# Google OAuth
-GOOGLE_CLIENT_ID=your_client_id
-GOOGLE_CLIENT_SECRET=your_client_secret
-GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback
+Rate-limit headers on every authenticated response: `RateLimit-Limit` (burst), `RateLimit-Remaining`,
+`RateLimit-Reset`, `X-Quota-Limit`, `X-Quota-Remaining`. On `429`: `Retry-After`.
+Error codes you'll meet: `unauthorized`, `account_suspended`, `platform_not_allowed`, `invalid_request`,
+`unsupported_platform`, `content_unavailable` (422), `rate_limited` / `quota_exceeded` (429),
+`upstream_unavailable` (502, lists every provider attempt), `overloaded` (503).
 
-# JWT
-JWT_SECRET=your_super_secret_key
-JWT_EXPIRES_IN=7d
+Default plans (editable via `PUT /admin/v1/plans/:id`):
 
-# Frontend
-FRONTEND_URL=http://localhost:3000
+| Plan | Sustained | Burst | Daily | Active keys |
+|---|---|---|---|---|
+| free | 5 / min | 5 | 100 | 2 |
+| basic | 20 / min | 20 | 1 000 | 5 |
+| pro | 100 / min | 100 | 10 000 | 20 |
+| enterprise | 1 000 / min | 500 | unlimited | 100 |
 
-# GeniusPay (Payments)
-GENIUSPAY_API_KEY=your_api_key
-GENIUSPAY_API_SECRET=your_api_secret
-GENIUSPAY_WEBHOOK_SECRET=your_webhook_secret
-```
+## Adding a platform or provider
 
-#### Frontend (`apps/web/.env`)
+1. Platform (host allowlist + canonicalisation): `apps/gateway/src/providers/platforms.ts`.
+2. Provider: implement `Provider` (`fetch(ctx) → MediaDraft`, throw `ProviderError` with the right `kind`)
+   in `providers/impl/`, register it in `DEFAULT_PROVIDERS` (`http/app.ts`).
+   Several providers per platform give you failover for free; `priority` decides the order.
+3. Put the HTML/JSON → model mapping in a pure `parse…` function and unit-test it against a captured fixture.
+4. Add a known-good URL to `PROBE_URLS` so its health shows up in `/v1/platforms`.
 
-```env
-NEXT_PUBLIC_API_URL=http://localhost:3001
-```
+## Operations
 
-## 📖 API Documentation
+- **Configuration** is validated at boot; the process refuses to start on a missing or too-short secret
+  (there are no built-in fallback secrets).
+- **Scaling**: replicas are stateless. Per-process state is limited to circuit breakers and bulkheads
+  (each replica learns upstream health on its own) and a small usage buffer.
+- **Shutdown**: on `SIGTERM` it stops accepting, drains in-flight requests, flushes buffered usage, then exits.
+- **Usage accuracy**: usage is aggregated per account/day/platform and flushed every `USAGE_FLUSH_INTERVAL_MS`.
+  A hard crash can lose at most one interval of counters. Quota *enforcement* lives in Redis and is exact.
+- **Rotating `KEY_PEPPER`** invalidates every issued key. Rotate individual keys with `/keys/:id/rotate` instead.
 
-### Authentication
-
-All API endpoints require an API key in the header:
+## Development
 
 ```bash
-curl -H "X-API-Key: nicedev_live_xxxxx" \
-  https://api.nice-api-hub.com/api/tiktok/download?url=...
+npm ci
+npm run typecheck && npm test          # integration tests need TEST_DATABASE_URL / TEST_REDIS_URL, else they skip
 ```
 
-### Endpoints
+Tests run against real Postgres and Redis (no mocks for the data plane): atomic rate limiting under
+concurrency, cache invalidation on revoke/plan change, quota sharing across keys, failover,
+fail-open/closed behaviour with Redis down.
 
-| Platform | Endpoint | Method |
-|----------|----------|--------|
-| TikTok | `/api/tiktok/download` | GET |
-| YouTube | `/api/youtube/download` | GET |
-| Instagram | `/api/instagram/download` | GET |
-| Twitter | `/api/twitter/download` | GET |
-| Facebook | `/api/facebook/download` | GET |
-| Spotify | `/api/spotify/download` | GET |
-| ... | ... | ... |
+## Status
 
-### Rate Limits
+Working and covered by tests: the gateway core, management API, metering, resilience, packaging.
 
-| Plan | Requests/Day | Requests/Min | API Keys |
-|------|--------------|--------------|----------|
-| FREE | 100 | 5 | 1 |
-| BASIC | 1,000 | 20 | 5 |
-| PRO | 10,000 | 100 | 20 |
-| ENTERPRISE | Unlimited | Custom | Unlimited |
+Not done yet:
 
-## 🐳 Docker Deployment
+- **Only TikTok and YouTube have providers.** The other 17 platforms of the v1 code base were placeholders
+  returning fake success; they are intentionally not exposed. Working scrapers for most of them exist in the git
+  history (`git show 49efecd:services/<name>Service.js`) and should be ported onto the `Provider` interface.
+- Provider parsers are tested on synthetic fixtures; validate them against live upstream responses.
+- No asynchronous job endpoint yet (`POST /v1/jobs` with webhook callback) for slow extractions.
+- Billing is deliberately out of scope: plans are entitlements only. Attach a payment provider or a marketplace later.
+- Docker image build is not exercised in CI here yet (the workflow does it); run it once on a machine with Docker.
+- Legacy v1 code (`apps/api`, `apps/web`, `packages/`, `docs/`, Turborepo files) is still on disk, outside the workspace,
+  pending removal.
 
-```bash
-# Development
-docker-compose up -d
+## Legal note
 
-# Production
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop
-docker-compose down
-```
-
-## 🔐 Admin Access
-
-1. Login with a Google account that has ADMIN role
-2. Navigate to `/admin`
-3. Setup your 6-digit PIN on first access
-4. PIN is required for each admin session
-
-## 💳 Payment Integration
-
-Payments are handled via GeniusPay supporting:
-- Orange Money
-- MTN MoMo
-- Moov Money
-- Wave
-- Visa/Mastercard
-
-Webhook URL: `https://your-api-domain.com/payments/webhook`
-
-## 📊 Monitoring
-
-- **Health Check**: `GET /health`
-- **API Status**: `GET /status`
-- **Admin Dashboard**: `/admin` (authenticated)
-
-## 🤝 Support
-
-- **Email**: nicebot226@gmail.com
-- **Documentation**: `/docs`
-
-## 📄 License
-
-MIT © NICE-DEV
-
----
-
-<p align="center">
-  Made with ❤️ by <strong>NICE-DEV</strong>
-</p>
+Providers call third-party services whose terms may restrict automated use, and downloading content from some
+platforms may conflict with their terms or with copyright. Keep the provider layer swappable and review the licensing
+of any code you port from the upstream project before commercial use.

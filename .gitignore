@@ -79,3 +79,6 @@ temp
 *.key
 *.secret
 secrets/
+
+# v2 gateway
+.dev-data

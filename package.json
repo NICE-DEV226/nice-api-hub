@@ -1,31 +1,21 @@
 {
   "name": "nice-api-hub",
-  "version": "1.0.0",
-  "description": "Universal Media Downloader API Platform by NICE-DEV",
+  "version": "2.0.0-alpha.0",
+  "description": "NICE-API'HUB — media extraction gateway (API-first)",
   "author": "NICE-DEV",
   "private": true,
+  "packageManager": "npm@11.17.0",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/gateway"
   ],
   "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
-    "start": "turbo run start",
-    "lint": "turbo run lint",
-    "test": "turbo run test",
-    "dev:web": "npm run dev --workspace=@nice-api-hub/web",
-    "dev:api": "npm run dev --workspace=@nice-api-hub/api",
-    "db:generate": "npm run db:generate --workspace=@nice-api-hub/database",
-    "db:push": "npm run db:push --workspace=@nice-api-hub/database",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down"
-  },
-  "devDependencies": {
-    "turbo": "^2.3.0",
-    "typescript": "^5.7.2"
+    "dev": "npm run dev -w @nice-api-hub/gateway",
+    "build": "npm run build -w @nice-api-hub/gateway",
+    "start": "npm run start -w @nice-api-hub/gateway",
+    "typecheck": "npm run typecheck -w @nice-api-hub/gateway",
+    "test": "npm run test -w @nice-api-hub/gateway"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22"
   }
 }

@@ -535,13 +535,31 @@ func clampInt(v, lo, hi int) int {
 // ---- view -------------------------------------------------------------------------
 
 func (m *setupView) View() string {
+	// The big logo when there is room for it; otherwise the plain title, so a small terminal never breaks.
+	if out, fits := m.render(true); fits {
+		return out
+	}
+	out, _ := m.render(false)
+	return out
+}
+
+func (m *setupView) render(logo bool) (string, bool) {
 	m.itemsY, m.actsY = nil, -1
 	w := minInt(72, maxInt(40, m.w-4))
 	m.boxW = w
 	inner := w - 4
 
 	var b strings.Builder
-	b.WriteString(ui.Title.Render("Welcome to NICE-API'HUB") + "\n")
+	if logo && m.w >= ui.BannerWidth+8 {
+		pad := strings.Repeat(" ", (inner-ui.BannerWidth)/2)
+		for _, l := range ui.Banner() {
+			b.WriteString(pad + l + "\n")
+		}
+		tag := ui.Tagline
+		b.WriteString(strings.Repeat(" ", maxInt(0, (inner-len(tag))/2)) + ui.MutedText.Render(tag) + "\n\n")
+	} else {
+		b.WriteString(ui.Title.Render("Welcome to NICE-API'HUB") + "\n")
+	}
 	b.WriteString(ui.MutedText.Render(m.d.Session.URL()) + "\n\n")
 	hasActs := false
 
@@ -625,7 +643,7 @@ func (m *setupView) View() string {
 		m.actsY = m.boxTop + 1 + strings.Count(strings.TrimRight(b.String(), "\n"), "\n") // the buttons are the last line
 		m.actsX = m.boxLeft + 2
 	}
-	return lipgloss.Place(m.w, maxInt(m.h, bh), lipgloss.Center, lipgloss.Center, box)
+	return lipgloss.Place(m.w, maxInt(m.h, bh), lipgloss.Center, lipgloss.Center, box), bh <= m.h || !logo
 }
 
 func (m *setupView) inputFooter(inner int) string {

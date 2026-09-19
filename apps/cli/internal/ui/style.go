@@ -7,16 +7,18 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 )
 
-// Palette. AdaptiveColor picks the right shade for light and dark terminals.
+// Palette: neutral greys, ONE accent (blue), and colour only where it carries meaning (ok / warning / error).
+// Values follow GitHub's Primer scale, which is tuned for legibility on both light and dark terminals.
+// To rebrand the whole interface, change Accent here and nowhere else.
 var (
-	Accent   = lipgloss.AdaptiveColor{Light: "#6D28D9", Dark: "#A78BFA"}
-	Good     = lipgloss.AdaptiveColor{Light: "#15803D", Dark: "#4ADE80"}
-	Warn     = lipgloss.AdaptiveColor{Light: "#A16207", Dark: "#FACC15"}
-	Bad      = lipgloss.AdaptiveColor{Light: "#B91C1C", Dark: "#F87171"}
-	Muted    = lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#9CA3AF"}
-	Subtle   = lipgloss.AdaptiveColor{Light: "#D1D5DB", Dark: "#374151"}
-	Text     = lipgloss.AdaptiveColor{Light: "#111827", Dark: "#F3F4F6"}
-	OnAccent = lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#111827"}
+	Accent   = lipgloss.AdaptiveColor{Light: "#0969DA", Dark: "#58A6FF"}
+	Good     = lipgloss.AdaptiveColor{Light: "#1A7F37", Dark: "#3FB950"}
+	Warn     = lipgloss.AdaptiveColor{Light: "#9A6700", Dark: "#D29922"}
+	Bad      = lipgloss.AdaptiveColor{Light: "#CF222E", Dark: "#F85149"}
+	Muted    = lipgloss.AdaptiveColor{Light: "#57606A", Dark: "#8B949E"}
+	Subtle   = lipgloss.AdaptiveColor{Light: "#D0D7DE", Dark: "#30363D"}
+	Text     = lipgloss.AdaptiveColor{Light: "#1F2328", Dark: "#E6EDF3"}
+	OnAccent = lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#0D1117"}
 )
 
 // Reusable styles.

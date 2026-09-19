@@ -82,3 +82,7 @@ secrets/
 
 # v2 gateway
 .dev-data
+
+# nah CLI build output
+apps/cli/bin
+apps/cli/dist

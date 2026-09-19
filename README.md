@@ -83,6 +83,18 @@ Interactive docs: `/docs`. Machine-readable spec: `/openapi.json`.
 Without Docker: `apps/gateway/scripts/dev-services.sh start` launches throwaway Postgres + Redis on high
 ports (prints the env to export), then `npm run cli -w @nice-api-hub/gateway -- migrate` and `npm run dev`.
 
+## Command line and terminal UI (`nah`)
+
+`apps/cli` is a Go program (Bubble Tea, Cobra) that talks to the gateway: scriptable commands (`nah media`,
+`nah download`, `nah jobs`, `nah admin accounts|keys …`, `--json`, exit codes) and a full-screen interface
+(`nah tui`: live dashboard, account and key management, a media playground with a download progress bar).
+
+```bash
+cd apps/cli && make build && ./bin/nah login && ./bin/nah tui
+```
+
+See [apps/cli/README.md](apps/cli/README.md). (The Node `cli` in `apps/gateway` remains for database-level bootstrap, e.g. `migrate`.)
+
 ## API
 
 | Endpoint | Auth | Purpose |

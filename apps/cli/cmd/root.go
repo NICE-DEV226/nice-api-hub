@@ -77,6 +77,7 @@ func NewRoot(env Env) *cobra.Command {
 	root.AddCommand(
 		a.loginCmd(), a.configCmd(), a.statusCmd(), a.mediaCmd(), a.downloadCmd(),
 		a.jobsCmd(), a.accountCmd(), a.usageCmd(), a.adminCmd(), a.tuiCmd(), a.versionCmd(),
+		a.initCmd(), a.registerCmd(), a.linkCmd(), a.recoverCmd(), a.keysCmd(),
 	)
 	return root
 }
@@ -96,6 +97,9 @@ func (a *app) init(cmd *cobra.Command, _ []string) error {
 	}
 	a.cfgPath, a.file = path, f
 	a.res = config.Resolve(f, a.profile, a.urlFlag, a.env.Getenv)
+	if err := a.res.Hydrate(f, a.env.Secrets); err != nil {
+		fmt.Fprintln(a.env.Err, ui.Warning.Render("! ")+err.Error())
+	}
 	return nil
 }
 

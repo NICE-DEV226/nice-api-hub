@@ -11,6 +11,13 @@ import (
 	"time"
 
 	"golang.org/x/term"
+
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/clip"
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/config"
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/device"
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/onboard"
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/paths"
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/vault"
 )
 
 // Prompter abstracts interactive input so commands are testable.
@@ -37,12 +44,32 @@ type Env struct {
 	Version    string
 	Commit     string
 	Date       string
+
+	// Secrets is the OS credential store; nil keeps secrets in the private config file only.
+	Secrets config.SecretStore
+	// Device identifies this computer (fingerprint, friendly name).
+	Device device.Source
+	// Clipboard copies text for the user.
+	Clipboard clip.Copier
+	// Paths says where per-OS things live.
+	Paths paths.Env
+	// Solve overrides the proof-of-work solver (tests).
+	Solve onboard.Solver
 }
 
 // DefaultEnv wires the real process environment.
 func DefaultEnv(version, commit, date string) Env {
 	stdinTTY := term.IsTerminal(int(os.Stdin.Fd()))
+	ps := paths.System()
+	dataDir, _ := ps.DataDir()
+	var secrets config.SecretStore
+	if os.Getenv("NAH_NO_KEYRING") == "" {
+		secrets = vault.Keyring{}
+	}
 	return Env{
+		Secrets:     secrets,
+		Device:      device.System(dataDir),
+		Paths:       ps,
 		Out:         os.Stdout,
 		Err:         os.Stderr,
 		In:          os.Stdin,

@@ -23,10 +23,7 @@ var ErrExists = errors.New("destination already exists (use --force to overwrite
 // ResolvePath decides where to write. dest may be empty (current dir), an existing directory,
 // or a file path. The name comes from the gateway when dest is a directory.
 func ResolvePath(dest, suggested, fallback string) string {
-	name := suggested
-	if name == "" {
-		name = fallback
-	}
+	name := SafeName(suggested, fallback) // never trust a name chosen by a remote server
 	if dest == "" {
 		return filepath.Join(".", name)
 	}
@@ -42,8 +39,20 @@ func ResolvePath(dest, suggested, fallback string) string {
 // Save streams s to the resolved path, via a ".part" file renamed on success. It never
 // leaves a partial file behind on failure or cancellation.
 func Save(ctx context.Context, s *api.DownloadStream, dest, fallbackName string, force bool, onProgress Progress) (string, int64, error) {
+	return save(ctx, s, dest, fallbackName, force, false, onProgress)
+}
+
+// SaveUnique is Save for interactive use: when the name is taken it saves "name (2).ext" instead of failing.
+func SaveUnique(ctx context.Context, s *api.DownloadStream, dest, fallbackName string, onProgress Progress) (string, int64, error) {
+	return save(ctx, s, dest, fallbackName, false, true, onProgress)
+}
+
+func save(ctx context.Context, s *api.DownloadStream, dest, fallbackName string, force, unique bool, onProgress Progress) (string, int64, error) {
 	path := ResolvePath(dest, s.Filename, fallbackName)
-	if !force {
+	if unique {
+		path = Unique(path)
+	}
+	if !force && !unique {
 		if _, err := os.Stat(path); err == nil {
 			return path, 0, fmt.Errorf("%s: %w", path, ErrExists)
 		}

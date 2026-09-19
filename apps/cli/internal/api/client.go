@@ -69,6 +69,9 @@ func IsCode(err error, code string) bool {
 type ErrNotConfigured struct{ What string }
 
 func (e *ErrNotConfigured) Error() string {
+	if e.What == "An API key" {
+		return e.What + " is not configured: this computer has no account yet. Run `nah register` to create one (or `nah login` if you already have a key)."
+	}
 	return e.What + " is not configured. Run `nah login` (or set the matching NAH_* environment variable)."
 }
 

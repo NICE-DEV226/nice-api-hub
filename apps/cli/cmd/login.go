@@ -18,7 +18,7 @@ func (a *app) loginCmd() *cobra.Command {
 		Use:   "login",
 		Short: "Save credentials for a gateway (checks them first)",
 		Long: "Stores the gateway URL, and optionally an API key (customer) and/or an admin token (operator).\n" +
-			"Secrets are asked without echo and saved in a private file (mode 0600).\n" +
+			"Secrets are asked without echo and kept in the system keychain (or a private 0600 file when there is none).\n" +
 			"For scripts: pipe the secret and pass --api-key-stdin or --admin-token-stdin.",
 		Args: exactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -30,7 +30,17 @@ func (a *app) loginCmd() *cobra.Command {
 			cur := a.file.Profiles[name]
 
 			url := a.res.URL
-			apiKey, admin := cur.APIKey, cur.AdminToken
+			// Current secrets come from the profile (file or keychain), never from environment variables:
+			// pressing Enter to keep a value must not silently persist something exported in the shell.
+			stored := config.Resolve(a.file, a.profile, a.urlFlag, func(k string) string {
+				if k == "NAH_API_KEY" || k == "NAH_ADMIN_TOKEN" {
+					return ""
+				}
+				return a.env.Getenv(k)
+			})
+			_ = stored.Hydrate(a.file, a.env.Secrets)
+			apiKey, admin := stored.APIKey, stored.AdminToken
+			_ = cur
 			switch {
 			case apiKeyStdin:
 				s, err := pr.ReadLine("")
@@ -102,12 +112,28 @@ func (a *app) loginCmd() *cobra.Command {
 				a.println(ui.OK.Render("✓ ") + "admin token valid")
 			}
 
-			a.file.Profiles[name] = config.Profile{URL: url, APIKey: apiKey, AdminToken: admin}
+			prof := a.file.Profiles[name]
+			prof.URL = url
+			a.file.Profiles[name] = prof
 			a.file.Current = name
+			where := map[bool]string{true: "system keychain", false: a.cfgPath}
+			var apiIn, adminIn bool
+			if apiIn, err = a.file.StoreSecret(a.env.Secrets, name, config.KindAPIKey, apiKey); err != nil {
+				return err
+			}
+			if adminIn, err = a.file.StoreSecret(a.env.Secrets, name, config.KindAdmin, admin); err != nil {
+				return err
+			}
 			if err := a.file.Save(a.cfgPath); err != nil {
 				return err
 			}
-			a.println(ui.MutedText.Render("  saved profile \"" + name + "\" to " + a.cfgPath))
+			a.println(ui.MutedText.Render("  saved profile \"" + name + "\" (settings: " + a.cfgPath + ")"))
+			if apiKey != "" {
+				a.println(ui.MutedText.Render("  API key: " + where[apiIn]))
+			}
+			if admin != "" {
+				a.println(ui.MutedText.Render("  admin token: " + where[adminIn]))
+			}
 			return nil
 		},
 	}

@@ -165,6 +165,10 @@ type Key struct {
 	RevokedAt   *string  `json:"revokedAt"`
 	LastUsedAt  *string  `json:"lastUsedAt"`
 	Secret      string   `json:"key,omitempty"`
+	// Set by the self-service endpoints (/v1/keys).
+	Scopes     []string `json:"scopes,omitempty"`
+	CreatedVia string   `json:"createdVia,omitempty"`
+	Current    bool     `json:"current,omitempty"`
 }
 
 // State summarises whether a key can still be used.

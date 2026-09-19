@@ -2,13 +2,7 @@
 
 The command line and terminal interface for [NICE-API'HUB](../../README.md).
 
-```
-██      ██      ██████      ██      ██
-████    ██    ██      ██    ██      ██
-██  ██  ██    ██████████    ██████████
-██    ████    ██      ██    ██      ██
-██      ██    ██      ██    ██      ██
-```
+<p align="center"><img src="../../docs/nah-welcome.png" alt="nah: the welcome screen" width="640"></p>
 
 One static binary (Go, no runtime needed), two ways to use it:
 

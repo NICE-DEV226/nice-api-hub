@@ -1,12 +1,6 @@
 # NICE-API'HUB
 
-```
-██      ██      ██████      ██      ██
-████    ██    ██      ██    ██      ██
-██  ██  ██    ██████████    ██████████
-██    ████    ██      ██    ██      ██
-██      ██    ██      ██    ██      ██
-```
+<p align="center"><img src="docs/nah-welcome.png" alt="nah: the welcome screen" width="640"></p>
 
 **Grab media from social platforms, from your terminal or from your own code.**
 

@@ -36,6 +36,10 @@ export function makeVariant(input: {
   quality?: string | undefined;
   ext?: string | undefined;
   hasAudio?: boolean | undefined;
+  width?: number | undefined;
+  height?: number | undefined;
+  protocol?: 'direct' | 'hls' | undefined;
+  mime?: string | undefined;
 }): Variant | null {
   if (!input.url) return null;
   const variant: Variant = { kind: input.kind, url: input.url };
@@ -46,6 +50,10 @@ export function makeVariant(input: {
     const mime = mimeFor(input.ext);
     if (mime) variant.mime = mime;
   }
+  if (input.mime) variant.mime = input.mime;
   if (input.hasAudio !== undefined) variant.hasAudio = input.hasAudio;
+  if (input.width) variant.width = input.width;
+  if (input.height) variant.height = input.height;
+  if (input.protocol) variant.protocol = input.protocol;
   return variant;
 }

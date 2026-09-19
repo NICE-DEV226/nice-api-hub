@@ -7,9 +7,13 @@ export interface Variant {
   /** Human label as reported upstream, e.g. "MP4 HD". */
   label?: string;
   quality?: string;
+  width?: number;
+  height?: number;
   ext?: string;
   mime?: string;
   hasAudio?: boolean;
+  /** `direct`: a file you can GET. `hls`: an .m3u8 playlist that needs a player / ffmpeg. */
+  protocol?: 'direct' | 'hls';
 }
 
 export interface MediaDraft {
@@ -44,6 +48,8 @@ export interface Provider {
   readonly platform: string;
   /** Lower runs first. */
   readonly priority: number;
+  /** Cap on simultaneous calls to this upstream (default: global setting). Use 1 for fragile free APIs. */
+  readonly maxConcurrency?: number;
   fetch(ctx: FetchContext): Promise<MediaDraft>;
 }
 

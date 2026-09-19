@@ -1,6 +1,8 @@
 import { ProviderError } from './types.js';
 
 export interface UpstreamRequest {
+  /** Statuses (besides 2xx) whose body the caller wants to inspect instead of getting an error. */
+  acceptStatus?: readonly number[];
   url: string;
   method?: 'GET' | 'POST';
   headers?: Record<string, string>;
@@ -18,6 +20,10 @@ const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
  * bounds the response size so a misbehaving upstream can't exhaust memory.
  */
 export async function upstreamText(req: UpstreamRequest): Promise<string> {
+  return (await upstreamRaw(req)).text;
+}
+
+export async function upstreamRaw(req: UpstreamRequest): Promise<{ status: number; text: string }> {
   let response: Response;
   try {
     response = await fetch(req.url, {
@@ -36,11 +42,12 @@ export async function upstreamText(req: UpstreamRequest): Promise<string> {
     });
   }
 
-  if (response.status === 429 || response.status === 403 || response.status === 451) {
+  const accepted = req.acceptStatus?.includes(response.status) ?? false;
+  if (!accepted && (response.status === 429 || response.status === 403 || response.status === 451)) {
     await response.body?.cancel().catch(() => {});
     throw new ProviderError('blocked', `upstream refused the request (HTTP ${response.status})`);
   }
-  if (!response.ok) {
+  if (!response.ok && !accepted) {
     await response.body?.cancel().catch(() => {});
     throw new ProviderError('upstream', `upstream returned HTTP ${response.status}`);
   }
@@ -53,7 +60,7 @@ export async function upstreamText(req: UpstreamRequest): Promise<string> {
   }
 
   const reader = response.body?.getReader();
-  if (!reader) return '';
+  if (!reader) return { status: response.status, text: '' };
   const chunks: Uint8Array[] = [];
   let received = 0;
   try {
@@ -72,7 +79,7 @@ export async function upstreamText(req: UpstreamRequest): Promise<string> {
     if (req.signal.aborted) throw new ProviderError('timeout', 'upstream response timed out', { cause: error });
     throw new ProviderError('upstream', 'upstream connection dropped', { cause: error });
   }
-  return Buffer.concat(chunks).toString('utf8');
+  return { status: response.status, text: Buffer.concat(chunks).toString('utf8') };
 }
 
 export async function upstreamJson<T>(req: UpstreamRequest): Promise<T> {

@@ -6,9 +6,12 @@ export const VariantSchema = Type.Object(
     url: Type.String(),
     label: Type.Optional(Type.String()),
     quality: Type.Optional(Type.String()),
+    width: Type.Optional(Type.Integer()),
+    height: Type.Optional(Type.Integer()),
     ext: Type.Optional(Type.String()),
     mime: Type.Optional(Type.String()),
     hasAudio: Type.Optional(Type.Boolean()),
+    protocol: Type.Optional(Type.Union([Type.Literal('direct'), Type.Literal('hls')])),
   },
   { $id: 'Variant' },
 );

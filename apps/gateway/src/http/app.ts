@@ -18,8 +18,10 @@ import { createMetrics, type Metrics } from '../metrics.js';
 import { UsageMeter } from '../metering/usage.js';
 import { platformStatus, ProbeStore } from '../probes.js';
 import { MediaCache } from '../providers/cache.js';
-import { tikDownloaderProvider } from '../providers/impl/tikdownloader.js';
-import { vidflyProvider } from '../providers/impl/vidfly.js';
+import { blueskyProvider } from '../providers/impl/bluesky.js';
+import { dailymotionProvider } from '../providers/impl/dailymotion.js';
+import { tikwmProvider } from '../providers/impl/tikwm.js';
+import { twmateProvider } from '../providers/impl/twmate.js';
 import { MediaService } from '../providers/mediaService.js';
 import { PLATFORMS, resolveTarget } from '../providers/platforms.js';
 import { ProviderRegistry } from '../providers/registry.js';
@@ -28,7 +30,16 @@ import { adminRoutes } from './adminRoutes.js';
 import { MediaSchema, ProblemSchema, VariantSchema } from './schemas.js';
 import './types.js';
 
-export const DEFAULT_PROVIDERS: readonly Provider[] = [tikDownloaderProvider, vidflyProvider];
+/**
+ * Only providers verified against the live upstream are registered here. Each one was
+ * exercised with real requests; see `npm run probe` to re-check them at any time.
+ */
+export const DEFAULT_PROVIDERS: readonly Provider[] = [
+  tikwmProvider,
+  twmateProvider,
+  blueskyProvider,
+  dailymotionProvider,
+];
 
 export interface AppDeps {
   config: Config;

@@ -13,12 +13,12 @@ Authorization: Bearer nah_live_…
   "data": {
     "platform": "tiktok",
     "sourceUrl": "https://www.tiktok.com/@user/video/123",
-    "title": "…", "author": null, "thumbnail": "https://…", "durationSeconds": null,
+    "title": "…", "author": "BBC News", "thumbnail": "https://…", "durationSeconds": 32,
     "variants": [
       { "kind": "video", "quality": "hd", "ext": "mp4", "mime": "video/mp4", "hasAudio": true, "url": "https://…" },
       { "kind": "audio", "ext": "mp3", "mime": "audio/mpeg", "url": "https://…" }
     ],
-    "provider": "tikdownloader",
+    "provider": "tikwm",
     "fetchedAt": "2026-09-19T15:00:00.000Z"
   },
   "meta": { "requestId": "…", "cached": false, "tookMs": 812 }
@@ -141,19 +141,39 @@ fail-open/closed behaviour with Redis down.
 
 ## Status
 
-Working and covered by tests: the gateway core, management API, metering, resilience, packaging.
+Verified end to end against the real upstream services (2026-09-19, `npm run probe`):
 
-Not done yet:
+| Platform | Provider | Notes |
+|---|---|---|
+| TikTok | `tikwm` (JSON API) | HD/SD without watermark, audio, photo posts. Free API allows ~1 req/s, so it runs with concurrency 1 |
+| X / Twitter | `twmate` (HTML) | Every rendition, best first, with width/height |
+| Bluesky | official AT Protocol AppView | Documented public API, no scraping; video is an HLS playlist |
+| Dailymotion | player metadata | HLS playlist |
 
-- **Only TikTok and YouTube have providers.** The other 17 platforms of the v1 code base were placeholders
-  returning fake success; they are intentionally not exposed. Working scrapers for most of them exist in the git
-  history (`git show 49efecd:services/<name>Service.js`) and should be ported onto the `Provider` interface.
-- Provider parsers are tested on synthetic fixtures; validate them against live upstream responses.
-- No asynchronous job endpoint yet (`POST /v1/jobs` with webhook callback) for slow extractions.
-- Billing is deliberately out of scope: plans are entitlements only. Attach a payment provider or a marketplace later.
-- Docker image build is not exercised in CI here yet (the workflow does it); run it once on a machine with Docker.
-- Legacy v1 code (`apps/api`, `apps/web`, `packages/`, `docs/`, Turborepo files) is still on disk, outside the workspace,
-  pending removal.
+`npm run probe` calls each provider with a real public URL and exits non-zero on failure. Run it after every
+deploy and on a schedule. Parsers are unit-tested against **real captured responses** (`test/fixtures`), plus a few
+clearly labelled synthetic ones for cases with no live sample (photo posts, image embeds).
+
+Not available yet, and why (found while testing on real upstreams, not assumed):
+
+- **YouTube**: the previous provider (`vidfly`) no longer answers, and every public Piped/Invidious instance is
+  blocked or disabled. Reliable YouTube extraction needs a maintained extractor (yt-dlp) plus cookies or a
+  residential proxy. Decision needed; the platform is declared but returns `unsupported_platform` until then.
+- **TikTok via `tikdownloader.io`**: removed. It sits behind a Cloudflare managed challenge (`403 Just a moment…`)
+  and cannot be called server-side. The gateway does not try to defeat anti-bot challenges.
+- **Reddit**: `reddit.com/.json` answers 403 from this network; the third-party fallback needs a real post to validate.
+- **Kuaishou**: the previous upstream (`kuaishouvideodownloader.net`) does not respond at all.
+- **Tumblr**: the previous upstream endpoint (`tumbleclip.com/api/tumblr`) now returns 404.
+- **Not yet verified against live content** (upstream is alive, but a working sample URL is needed to port it):
+  Pinterest, LinkedIn, Snapchat, CapCut, Douyin, SoundCloud, Spotify, Terabox, Threads, Instagram/Facebook.
+  The old scrapers are in git history (`git show 49efecd:services/<name>Service.js`).
+
+Other gaps:
+
+- No asynchronous job endpoint yet (`POST /v1/jobs` with webhook callback) for slow extractions
+  (upstreams take 2 to 7 s here, so callers should use generous timeouts).
+- Billing is deliberately out of scope: plans are entitlements only.
+- The Docker image build has not been exercised in this environment (no Docker daemon); CI builds it.
 
 ## Legal note
 

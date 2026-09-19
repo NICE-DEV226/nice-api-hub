@@ -32,6 +32,41 @@ export const PLATFORMS: readonly Platform[] = [
       }
     },
   },
+  {
+    id: 'twitter',
+    displayName: 'X (Twitter)',
+    hosts: ['twitter.com', 'x.com'],
+    canonicalize(url) {
+      // /NASA/status/123/video/1?s=20  →  /NASA/status/123
+      const m = /^\/([^/]+)\/status\/(\d+)/.exec(url.pathname);
+      if (m) url.pathname = `/${m[1]}/status/${m[2]}`;
+      url.search = '';
+    },
+  },
+  {
+    id: 'bluesky',
+    displayName: 'Bluesky',
+    hosts: ['bsky.app'],
+    canonicalize(url) {
+      url.search = '';
+    },
+  },
+  {
+    id: 'dailymotion',
+    displayName: 'Dailymotion',
+    hosts: ['dailymotion.com', 'dai.ly'],
+    canonicalize(url) {
+      // dai.ly/x9yfz8u and dailymotion.com/video/x9yfz8u_slug → www.dailymotion.com/video/x9yfz8u
+      const short = /^\/([a-z0-9]+)$/i.exec(url.pathname);
+      const long = /^\/video\/([a-z0-9]+)/i.exec(url.pathname);
+      const id = url.hostname === 'dai.ly' ? short?.[1] : long?.[1];
+      if (id) {
+        url.hostname = 'www.dailymotion.com';
+        url.pathname = `/video/${id}`;
+      }
+      url.search = '';
+    },
+  },
 ];
 
 const MAX_URL_LENGTH = 2048;

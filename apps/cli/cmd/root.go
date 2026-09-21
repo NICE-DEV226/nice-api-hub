@@ -103,6 +103,14 @@ func (a *app) init(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	a.cfgPath, a.file = path, f
+	switch a.env.Getenv("NAH_NERD_FONT") {
+	case "1":
+		ui.RoundCaps = true
+	case "0":
+		ui.RoundCaps = false
+	default:
+		ui.RoundCaps = f.Rounded
+	}
 	a.res = config.Resolve(f, a.profile, a.urlFlag, a.env.Getenv)
 	if err := a.res.Hydrate(f, a.env.Secrets); err != nil {
 		fmt.Fprintln(a.env.Err, ui.Warning.Render("! ")+err.Error())

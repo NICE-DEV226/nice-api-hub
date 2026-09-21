@@ -272,3 +272,38 @@ func TestKeyState(t *testing.T) {
 		t.Fatal("key state")
 	}
 }
+
+func TestThumbnailAsksTheGatewayAndAuthenticates(t *testing.T) {
+	var gotAuth, gotURL string
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotAuth, gotURL = r.Header.Get("Authorization"), r.URL.Query().Get("url")
+		if r.URL.Path != "/v1/thumbnail" {
+			t.Errorf("path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Write([]byte("PNGDATA"))
+	})
+	b, err := c.Thumbnail(context.Background(), "https://cdn.example/a b.jpg?x=1&y=2")
+	if err != nil || string(b) != "PNGDATA" {
+		t.Fatalf("%q %v", b, err)
+	}
+	if gotAuth != "Bearer nah_live_testkey" || gotURL != "https://cdn.example/a b.jpg?x=1&y=2" {
+		t.Fatalf("auth=%q url=%q", gotAuth, gotURL)
+	}
+}
+
+func TestThumbnailErrorsAreProblemsAndAnOversizedBodyIsRefused(t *testing.T) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("url") == "big" {
+			w.Write(make([]byte, 6<<20))
+			return
+		}
+		problem(w, 404, "not_found", "Unknown thumbnail.", nil)
+	})
+	if _, err := c.Thumbnail(context.Background(), "x"); !IsCode(err, "not_found") {
+		t.Fatalf("%v", err)
+	}
+	if _, err := c.Thumbnail(context.Background(), "big"); err == nil || !strings.Contains(err.Error(), "larger") {
+		t.Fatalf("%v", err)
+	}
+}

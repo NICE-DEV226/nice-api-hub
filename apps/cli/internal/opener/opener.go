@@ -65,3 +65,12 @@ func start(path string, reveal bool) error {
 	go func() { _ = cmd.Wait() }() // reap the child; explorer.exe exits non-zero on success
 	return nil
 }
+
+// OpenURL opens a web page in the default browser. Only http(s) links are accepted: the address comes from a
+// remote service, and other schemes (file:, javascript:, custom handlers) could run something.
+func OpenURL(url string) error {
+	if !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "http://") {
+		return errors.New("refusing to open a link that is not http(s)")
+	}
+	return start(url, false)
+}

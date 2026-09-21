@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+	"image"
 	"strings"
 	"time"
 
@@ -8,7 +10,9 @@ import (
 
 	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/api"
 	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/config"
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/fsnav"
 	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/onboard"
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/preview"
 	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/tui"
 )
 
@@ -68,6 +72,34 @@ func (s session) SaveRecovery(en api.Enrollment) (string, error) {
 	return onboard.SaveRecoveryFile(a.downloadDir(), en.Account.Name, a.res.URL, en.RecoveryKey, a.env.Now())
 }
 
+func (s session) SetDownloadDir(dir string) error {
+	a := s.a
+	p := a.file.Profiles[a.res.Profile]
+	p.RememberDir(dir)
+	a.file.Profiles[a.res.Profile] = p
+	a.res.DownloadDir = dir
+	return a.file.Save(a.cfgPath)
+}
+
+func (s session) AskWhereToSave() bool {
+	return !s.a.file.Profiles[s.a.res.Profile].SaveWithoutAsking
+}
+
+func (s session) SetAskWhereToSave(ask bool) error {
+	a := s.a
+	p := a.file.Profiles[a.res.Profile]
+	p.SaveWithoutAsking = !ask
+	a.file.Profiles[a.res.Profile] = p
+	return a.file.Save(a.cfgPath)
+}
+
+func (s session) SetRounded(on bool) error {
+	s.a.file.Rounded = on
+	return s.a.file.Save(s.a.cfgPath)
+}
+
+func (s session) RecentDirs() []string { return s.a.file.Profiles[s.a.res.Profile].RecentDirs }
+
 func (s session) Reload() (tui.Deps, error) { return s.a.tuiDeps(s.dir) }
 
 // tuiDeps describes the terminal UI for the credentials currently known.
@@ -81,6 +113,7 @@ func (a *app) tuiDeps(dir string) (tui.Deps, error) {
 	}
 	return tui.Deps{
 		Client:      c,
+		Thumb:       thumbFetcher(c),
 		Profile:     a.res.Profile,
 		HasAPI:      a.res.APIKey != "",
 		HasAdmin:    a.res.AdminToken != "",
@@ -88,6 +121,7 @@ func (a *app) tuiDeps(dir string) (tui.Deps, error) {
 		DownloadDir: dir,
 		Refresh:     15 * time.Second,
 		Session:     session{a: a, dir: dir},
+		FS:          fsnav.System(),
 		Copy: func(text string) tea.Cmd {
 			return func() tea.Msg {
 				_, _ = a.env.Clipboard.Copy(text)
@@ -95,4 +129,22 @@ func (a *app) tuiDeps(dir string) (tui.Deps, error) {
 			}
 		},
 	}, nil
+}
+
+// thumbFetcher gets a preview image through the gateway, which fetches it for us (the CDN never sees this computer's
+// address, and a slow local DNS does not matter). Only if the gateway cannot do it, for instance an older version
+// without the route, does it try the image address directly.
+func thumbFetcher(c *api.Client) func(context.Context, string) (image.Image, error) {
+	direct := preview.NewClient()
+	return func(ctx context.Context, url string) (image.Image, error) {
+		if b, err := c.Thumbnail(ctx, url); err == nil {
+			if img, derr := preview.Decode(b); derr == nil {
+				return img, nil
+			}
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return preview.Fetch(ctx, direct, url)
+	}
 }

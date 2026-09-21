@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+	"image"
 	"os"
 	"time"
 
@@ -9,6 +11,9 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/api"
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/fsnav"
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/opener"
+	"github.com/NICE-DEV226/nice-api-hub/apps/cli/internal/preview"
 )
 
 // Deps is everything the interface needs from the outside.
@@ -21,6 +26,12 @@ type Deps struct {
 	DownloadDir string
 	// Refresh is the dashboard auto-refresh period (0 disables it).
 	Refresh time.Duration
+	// Thumb fetches and decodes a thumbnail; the default downloads it directly. Tests replace it.
+	Thumb func(ctx context.Context, url string) (image.Image, error)
+	// OpenURL opens a web page in the browser; the default uses the system's opener.
+	OpenURL func(url string) error
+	// FS is how the folder picker sees the file system; the zero value means the real one.
+	FS fsnav.Env
 	// Session lets the interface set this computer up (accounts, keys). Nil disables the setup screens.
 	Session Session
 	// Copy puts text on the clipboard. Defaults to the OSC 52 terminal escape.
@@ -28,6 +39,16 @@ type Deps struct {
 }
 
 func (d *Deps) defaults() {
+	if d.Thumb == nil {
+		client := preview.NewClient()
+		d.Thumb = func(ctx context.Context, url string) (image.Image, error) { return preview.Fetch(ctx, client, url) }
+	}
+	if d.OpenURL == nil {
+		d.OpenURL = opener.OpenURL
+	}
+	if d.FS.Home == nil {
+		d.FS = fsnav.System()
+	}
 	if d.Now == nil {
 		d.Now = time.Now
 	}

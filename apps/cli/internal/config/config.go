@@ -37,6 +37,26 @@ type Profile struct {
 
 	// DownloadDir overrides the default download folder.
 	DownloadDir string `json:"downloadDir,omitempty"`
+	// SaveWithoutAsking skips the "where to save?" question and downloads straight into DownloadDir.
+	// The default (false) asks every time, when a download starts.
+	SaveWithoutAsking bool `json:"saveWithoutAsking,omitempty"`
+	// RecentDirs are the folders chosen for downloads before, most recent first.
+	RecentDirs []string `json:"recentDirs,omitempty"`
+}
+
+// MaxRecentDirs is how many recent folders are remembered.
+const MaxRecentDirs = 8
+
+// RememberDir makes dir the default download folder and moves it to the front of the recent folders.
+func (p *Profile) RememberDir(dir string) {
+	p.DownloadDir = dir
+	out := []string{dir}
+	for _, d := range p.RecentDirs {
+		if d != dir && len(out) < MaxRecentDirs {
+			out = append(out, d)
+		}
+	}
+	p.RecentDirs = out
 }
 
 // Secret kinds.
@@ -138,6 +158,8 @@ func (r *Resolved) Hydrate(f *File, s SecretStore) error {
 
 // File is the on-disk configuration.
 type File struct {
+	// Rounded draws pills with half-circle ends (needs a Nerd Font). NAH_NERD_FONT overrides it.
+	Rounded  bool               `json:"rounded,omitempty"`
 	Current  string             `json:"current,omitempty"`
 	Profiles map[string]Profile `json:"profiles,omitempty"`
 }

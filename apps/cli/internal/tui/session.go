@@ -19,6 +19,16 @@ type Session interface {
 	StoreSecret(kind, value string) (inKeychain bool, err error)
 	// SaveRecovery writes the recovery key to a private file and returns its path.
 	SaveRecovery(en api.Enrollment) (string, error)
+	// SetDownloadDir makes dir the default download folder, remembers it, and saves the setting.
+	SetDownloadDir(dir string) error
+	// AskWhereToSave reports whether starting a download opens the folder picker first (the default).
+	AskWhereToSave() bool
+	// SetAskWhereToSave turns that question on or off and saves the setting.
+	SetAskWhereToSave(ask bool) error
+	// SetRounded remembers whether pills are drawn with rounded ends (Ctrl+R).
+	SetRounded(on bool) error
+	// RecentDirs lists the folders chosen before, most recent first.
+	RecentDirs() []string
 	// Reload rebuilds the dependencies from the saved setup (new client, new capabilities).
 	Reload() (Deps, error)
 }

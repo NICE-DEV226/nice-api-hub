@@ -23,8 +23,22 @@ type fakeSession struct {
 	secrets   map[string]string
 	saved     []api.Enrollment
 	reloadDep Deps
+	dirs      []string
+	noAsk     bool
+	rounded   bool
 }
 
+func (s *fakeSession) SetDownloadDir(dir string) error {
+	s.dirs = append([]string{dir}, s.dirs...)
+	return nil
+}
+func (s *fakeSession) AskWhereToSave() bool { return !s.noAsk }
+func (s *fakeSession) SetAskWhereToSave(ask bool) error {
+	s.noAsk = !ask
+	return nil
+}
+func (s *fakeSession) SetRounded(on bool) error          { s.rounded = on; return nil }
+func (s *fakeSession) RecentDirs() []string              { return s.dirs }
 func (s *fakeSession) URL() string                       { return s.url }
 func (s *fakeSession) SetURL(u string) error             { s.url = u; return nil }
 func (s *fakeSession) Onboard() (onboard.Service, error) { return s.svc, nil }

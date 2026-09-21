@@ -76,7 +76,7 @@ func (a *App) build(d Deps) {
 		a.tabs = append(a.tabs, tabInfo{tabAccounts, "Accounts", newAccounts(d)})
 	}
 	if d.HasAPI {
-		a.tabs = append(a.tabs, tabInfo{tabPlayground, "Playground", newPlayground(d)})
+		a.tabs = append(a.tabs, tabInfo{tabPlayground, "Download", newPlayground(d)})
 		a.active = len(a.tabs) - 1 // open on what the person came for: pasting a link
 	}
 }
@@ -109,7 +109,21 @@ func (a *App) Init() tea.Cmd {
 
 func (a *App) current() view { return a.tabs[a.active].v }
 
-func (a *App) bodySize() (int, int) { return a.w, maxInt(3, a.h-4) }
+// maxContentWidth keeps the screens readable on wide terminals: past this, extra columns would only push things
+// apart. The column is centred; the header and the key hints still span the whole window.
+const maxContentWidth = 104
+
+func (a *App) bodyWidth() int {
+	if a.setupMode { // the welcome screen centres itself
+		return a.w
+	}
+	return minInt(a.w, maxContentWidth)
+}
+
+func (a *App) bodySize() (int, int) { return a.bodyWidth(), maxInt(3, a.h-4) }
+
+// bodyLeft is the number of blank columns to the left of the content column.
+func (a *App) bodyLeft() int { return (a.w - a.bodyWidth()) / 2 }
 
 func (a *App) switchTo(i int) tea.Cmd {
 	if i < 0 || i >= len(a.tabs) || i == a.active {
@@ -161,6 +175,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		k := msg.String()
 		if k == "ctrl+c" {
 			return a, a.quit()
+		}
+		if k == "ctrl+r" { // round the corners of pills and the input (needs a Nerd Font); remembered
+			ui.RoundCaps = !ui.RoundCaps
+			if a.d.Session != nil {
+				_ = a.d.Session.SetRounded(ui.RoundCaps)
+			}
+			return a, nil
 		}
 		if !a.current().Capturing() {
 			switch k {
@@ -219,6 +240,10 @@ func (a *App) onMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 	if m, ok := a.current().(mouser); ok {
 		msg.Y -= a.bodyTop
+		msg.X -= a.bodyLeft()
+		if msg.X < 0 || msg.X >= a.bodyWidth() {
+			return nil
+		}
 		return m.Mouse(msg)
 	}
 	return nil
@@ -283,6 +308,7 @@ func (a *App) footer() string {
 	if !a.d.HasAPI && a.d.Session != nil && !a.setupMode {
 		global = append(global, key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "set up my account")))
 	}
+	global = append(global, key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "round corners")))
 	global = append(global, key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")))
 	v := a.current()
 	keys := append(append([]key.Binding{}, v.Help()...), global...)
@@ -307,6 +333,9 @@ func (a *App) View() string {
 	}
 	_, bh := a.bodySize()
 	body := lipgloss.NewStyle().Height(bh).MaxHeight(bh).Render(a.current().View())
+	if left := a.bodyLeft(); left > 0 {
+		body = indent(body, strings.Repeat(" ", left))
+	}
 	return a.header() + "\n\n" + body + "\n" + a.footer()
 }
 

@@ -51,9 +51,18 @@ On a computer that has no account, `nah` opens a welcome screen. Pick what fits:
 
 The gateway address defaults to `http://localhost:3000`; change it from the welcome screen, with `nah init <url>`, or with
 `NAH_URL`. Afterwards, typing `nah` opens straight on the download screen: paste a link, `Enter`, click the quality you
-want, click again to download. Files go to your Downloads folder and are never overwritten (`clip (2).mp4`).
+want, click again to download. When you start a download, a folder picker asks where to save it (with places, recent folders, filter-as-you-type and path
+completion; `Enter` accepts the proposed folder). Files are never overwritten (`clip (2).mp4`).
 
-<p align="center"><img src="docs/download.png" alt="The download screen: pick a quality, click again to download" width="700"></p>
+<p align="center"><img src="docs/nah-home.png" alt="The home screen: paste a link" width="760"></p>
+
+Before you choose anything, you see what you are about to download, in plain words:
+
+<p align="center"><img src="docs/nah-overview.png" alt="The overview: preview image, title, and the choices" width="760"></p>
+
+When the download starts, a picker asks where to save it:
+
+<p align="center"><img src="docs/nah-picker.png" alt="The folder picker" width="640"></p>
 
 ### Everyday commands
 
@@ -166,6 +175,7 @@ The response shape is identical for every platform and every provider.
 | `GET /v1/account` | API key | Your plan, limits and webhook secret |
 | `GET /v1/download?url=&kind=&maxHeight=&audioFormat=` | API key | Stream the media as ONE playable file (merges video+audio, extracts MP3) |
 | `GET /v1/usage?days=` | API key | Your plan limits and recent usage |
+| `GET /v1/thumbnail?url=` | API key | The preview image of a media you just resolved. The gateway fetches it (JPEG, PNG, WebP or GIF, at most 4 MiB), so the CDN never sees your address. Not an open proxy: only thumbnails returned by `/v1/media` in the last hour, and every hop goes through the SSRF guard |
 | `GET /v1/platforms` | none | Supported platforms + live status (`operational`/`degraded`/`down`/`unknown`) |
 | `/admin/v1/*` | admin token | Plans, accounts, keys (create / revoke / rotate with grace period), usage, audit |
 | `GET /healthz` · `/readyz` | none | Liveness · readiness (Postgres + Redis) |
@@ -177,7 +187,7 @@ Self-service endpoints (`/v1/register`, `/v1/link*`, `/v1/recover`, `/v1/keys*`)
 [Accounts without e-mail](#accounts-without-e-mail).
 
 **Two budgets.** Calls that do work (`/v1/media`, `/v1/download`, `POST /v1/jobs`) spend your plan's rate limit and daily
-quota. Cheap control calls (`/v1/account`, `/v1/usage`, `GET /v1/jobs/:id`, `/v1/keys*`, `/v1/link`, `/v1/recover`) use a
+quota. Cheap control calls (`/v1/account`, `/v1/usage`, `/v1/thumbnail`, `GET /v1/jobs/:id`, `/v1/keys*`, `/v1/link`, `/v1/recover`) use a
 separate, generous bucket that never touches the daily quota, so a UI that refreshes its screen cannot use up your downloads.
 
 Rate-limit headers on every authenticated response: `RateLimit-Limit` (burst), `RateLimit-Remaining`,

@@ -124,7 +124,7 @@ func newGW(t *testing.T) *gw {
 		case sig == "GET /v1/account":
 			w(rw, 200, `{"data":{"id":"`+a1+`","name":"Acme Corp","plan":"pro","limits":{"rps":1.6667,"burst":100,"dailyQuota":10000},"platforms":null,"webhookSecret":"whsec_abcdef0123456789"}}`)
 		case sig == "GET /v1/usage":
-			today := time.Now().UTC().Format("2006-01-02")
+			today := "2026-09-19" // the same day as the fixed clock in run(); never the real date, or the test breaks at midnight
 			w(rw, 200, `{"data":{"plan":"pro","limits":{"rps":1.6667,"burst":100,"dailyQuota":10000},"platforms":null,"usage":[{"day":"`+today+`","platform":"youtube","requests":2500,"errors":3,"cache_hits":40,"rate_limited":0}]}}`)
 		case sig == "GET /v1/media":
 			switch r.URL.Query().Get("url") {

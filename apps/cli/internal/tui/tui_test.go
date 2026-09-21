@@ -177,7 +177,7 @@ func TestDashboardShowsHealthPlatformsAndQuota(t *testing.T) {
 func TestTabsAdaptToCredentials(t *testing.T) {
 	g := newFakeGateway(t)
 	only := NewApp(testDeps(t, g, true, false))
-	if len(only.tabs) != 2 || only.tabs[1].title != "Playground" {
+	if len(only.tabs) != 2 || only.tabs[1].title != "Download" {
 		t.Fatalf("API key only => Dashboard + Playground, got %+v", only.tabs)
 	}
 	adm := NewApp(testDeps(t, g, false, true))
@@ -301,7 +301,7 @@ func TestPlaygroundResolvesAndDownloads(t *testing.T) {
 	waitFor(t, tm, "Paste a media URL")
 	tm.Type("https://www.youtube.com/watch?v=abc")
 	tm.Send(press("enter"))
-	waitFor(t, tm, "Big Buck Bunny", "ytdlp-youtube", "1080p", "128kbps", "233.7 MB")
+	waitFor(t, tm, "Big Buck Bunny", "ytdlp-youtube", "Best quality", "1080p", "233.7 MB", "Audio only", "MP3")
 	tm.Send(press("d"))
 	waitFor(t, tm, "Saved", "Big Buck Bunny.mp4")
 	b, err := os.ReadFile(filepath.Join(d.DownloadDir, "Big Buck Bunny.mp4"))
@@ -337,27 +337,6 @@ func TestPlaygroundSurfacesGatewayErrors(t *testing.T) {
 	waitFor(t, tm, "content_unavailable", "private, removed")
 	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
 	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
-}
-
-func TestDownloadRequestMapping(t *testing.T) {
-	yes, no := true, false
-	cases := []struct {
-		v    api.Variant
-		mp3  bool
-		want api.DownloadRequest
-		name string
-	}{
-		{api.Variant{Kind: "video", Height: 1080, HasAudio: &no}, false, api.DownloadRequest{URL: "u", Kind: "video", MaxHeight: 1080}, "nah-download.mp4"},
-		{api.Variant{Kind: "video", Height: 0, HasAudio: &yes}, false, api.DownloadRequest{URL: "u", Kind: "video"}, "nah-download.mp4"},
-		{api.Variant{Kind: "audio"}, false, api.DownloadRequest{URL: "u", Kind: "audio"}, "nah-download.m4a"},
-		{api.Variant{Kind: "video", Height: 720}, true, api.DownloadRequest{URL: "u", Kind: "audio", AudioFormat: "mp3"}, "nah-download.mp3"},
-	}
-	for i, c := range cases {
-		got, name := downloadRequest("u", c.v, c.mp3)
-		if got != c.want || name != c.name {
-			t.Errorf("case %d: got %+v %q want %+v %q", i, got, name, c.want, c.name)
-		}
-	}
 }
 
 var _ = json.Marshal

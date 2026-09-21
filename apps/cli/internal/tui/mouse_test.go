@@ -98,14 +98,14 @@ func resultPlayground(t *testing.T) (*App, *playground) {
 func TestClickingAResultRowSelectsItAndASecondClickDownloadsIt(t *testing.T) {
 	a, pg := resultPlayground(t)
 	rowY := a.bodyTop + pg.gridY + gridHeaderLines
-	a.Update(click(5, rowY+2)) // third row
+	a.Update(click(a.bodyLeft()+5, rowY+2)) // third row
 	if pg.tbl.Cursor() != 2 {
 		t.Fatalf("cursor %d", pg.tbl.Cursor())
 	}
 	if pg.state != pgResult {
 		t.Fatal("first click only selects")
 	}
-	_, cmd := a.Update(click(5, rowY+2))
+	_, cmd := a.Update(click(a.bodyLeft()+5, rowY+2))
 	if pg.state != pgDownloading || cmd == nil {
 		t.Fatalf("second click must start the download (state %d)", pg.state)
 	}
@@ -117,7 +117,7 @@ func TestClickingAButtonRunsItsAction(t *testing.T) {
 	a.View()
 	// the "New URL" button is the last one
 	last := pg.acts.spans[len(pg.acts.spans)-1]
-	a.Update(click(1+last[0]+1, a.bodyTop+pg.actsY))
+	a.Update(click(a.bodyLeft()+1+last[0]+1, a.bodyTop+pg.actsY))
 	if pg.state != pgInput {
 		t.Fatalf("the New URL button must return to the input, state %d", pg.state)
 	}
@@ -125,12 +125,12 @@ func TestClickingAButtonRunsItsAction(t *testing.T) {
 
 func TestMouseWheelMovesTheSelection(t *testing.T) {
 	a, pg := resultPlayground(t)
-	a.Update(wheel(10, a.bodyTop+pg.gridY+3, false))
-	a.Update(wheel(10, a.bodyTop+pg.gridY+3, false))
+	a.Update(wheel(a.bodyLeft()+10, a.bodyTop+pg.gridY+3, false))
+	a.Update(wheel(a.bodyLeft()+10, a.bodyTop+pg.gridY+3, false))
 	if pg.tbl.Cursor() != 2 {
 		t.Fatalf("cursor %d", pg.tbl.Cursor())
 	}
-	a.Update(wheel(10, a.bodyTop+pg.gridY+3, true))
+	a.Update(wheel(a.bodyLeft()+10, a.bodyTop+pg.gridY+3, true))
 	if pg.tbl.Cursor() != 1 {
 		t.Fatalf("cursor %d", pg.tbl.Cursor())
 	}
@@ -146,7 +146,7 @@ func TestClickingAnAccountSelectsItAndFetchesItsKeys(t *testing.T) {
 	acc.accs = []api.Account{{ID: acct1, Name: "Acme Corp", PlanID: "pro", Status: "active"}, {ID: acct2, Name: "Other", PlanID: "free", Status: "active"}}
 	acc.rebuildAccountRows(acct1)
 	a.View()
-	_, cmd := a.Update(click(6, a.bodyTop+2+gridHeaderLines+1)) // second account
+	_, cmd := a.Update(click(a.bodyLeft()+6, a.bodyTop+2+gridHeaderLines+1)) // second account
 	if acc.selected() == nil || acc.selected().ID != acct2 {
 		t.Fatalf("selected %+v", acc.selected())
 	}
@@ -156,7 +156,7 @@ func TestClickingAnAccountSelectsItAndFetchesItsKeys(t *testing.T) {
 	if acc.pane != 0 {
 		t.Fatal("a click on the left panel focuses it")
 	}
-	a.Update(click(a.w-10, a.bodyTop+4))
+	a.Update(click(a.bodyLeft()+a.bodyWidth()-10, a.bodyTop+4))
 	if acc.pane != 1 {
 		t.Fatal("a click on the right panel focuses it")
 	}

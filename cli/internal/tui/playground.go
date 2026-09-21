@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -282,7 +283,9 @@ func (m *playground) Update(msg tea.Msg) tea.Cmd {
 			case msg.err != nil:
 				m.toast.set(now, "Download failed: "+msg.err.Error(), true)
 			default:
-				m.toast.set(now, fmt.Sprintf("Saved %s (%s in %s)", msg.res.Path, ui.Bytes(msg.res.Bytes), msg.res.Elapsed.Round(100*time.Millisecond)), false)
+				home, _ := m.d.FS.Home()
+				m.toast.set(now, fmt.Sprintf("Saved %s (%s in %s) in %s", filepath.Base(msg.res.Path), ui.Bytes(msg.res.Bytes),
+					msg.res.Elapsed.Round(100*time.Millisecond), fsnav.Short(filepath.Dir(msg.res.Path), home, 40)), false)
 			}
 		}
 	case spinner.TickMsg:

@@ -124,7 +124,8 @@ func TestTypingAPathCompletesWithTabAndJumpsWithEnter(t *testing.T) {
 	p := newFolderPicker(env, home, "", nil)
 	typeText(p, "~/Mu")
 	p.Update(keyMsg("tab"))
-	if p.filter != "~/Music/" {
+	sep := string(filepath.Separator)
+	if p.filter != "~"+sep+"Music"+sep {
 		t.Fatalf("completed: %q", p.filter)
 	}
 	typeText(p, "Ro")
@@ -150,7 +151,7 @@ func TestRecentFoldersComeFirstInTheShortcuts(t *testing.T) {
 }
 
 func TestTheShortcutsAreReachableFromTheKeyboard(t *testing.T) {
-	env, home := pickerEnv(t, "Downloads", "Documents", "Videos", "Music")
+	env, home := pickerEnv(t, "Downloads", "Documents", "Music")
 	p := newFolderPicker(env, home, filepath.Join(home, "Downloads"), nil)
 	if p.zone != zoneList {
 		t.Fatal("the list has the keyboard at first")
@@ -172,12 +173,12 @@ func TestTheShortcutsAreReachableFromTheKeyboard(t *testing.T) {
 	}
 	// pick one and go there
 	for i, pl := range p.places {
-		if strings.HasSuffix(pl.Path, "Videos") {
+		if strings.HasSuffix(pl.Path, "Music") {
 			p.placeFocus = i
 		}
 	}
 	p.Update(keyMsg("enter"))
-	if filepath.Base(p.dir) != "Videos" || p.zone != zoneList || !p.g.focused || p.done {
+	if filepath.Base(p.dir) != "Music" || p.zone != zoneList || !p.g.focused || p.done {
 		t.Fatalf("Enter goes there and hands the keyboard back to the list: dir=%s zone=%d done=%v", p.dir, p.zone, p.done)
 	}
 }
@@ -234,7 +235,7 @@ func TestTabMovesOntoTheShortcutsAndThroughThem(t *testing.T) {
 	p.Update(keyMsg("esc"))
 	typeText(p, "~/Vi")
 	p.Update(keyMsg("tab"))
-	if p.zone != zoneList || p.filter != "~/Videos/" {
+	if p.zone != zoneList || p.filter != "~"+string(filepath.Separator)+"Videos"+string(filepath.Separator) {
 		t.Fatalf("path completion is unchanged: zone=%d filter=%q", p.zone, p.filter)
 	}
 }
@@ -268,18 +269,18 @@ func TestTheHighlightedShortcutIsShownAndStaysInViewWhenTheyDoNotAllFit(t *testi
 }
 
 func TestClickingAShortcutStillWorksAndHandsBackTheKeyboard(t *testing.T) {
-	env, home := pickerEnv(t, "Downloads", "Videos")
+	env, home := pickerEnv(t, "Downloads", "Music")
 	p := newFolderPicker(env, home, filepath.Join(home, "Downloads"), nil)
 	p.Update(keyMsg("up"))
 	p.View(110, 40)
 	var vid placeSpan
 	for _, sp := range p.placeSpans {
-		if strings.HasSuffix(sp.path, "Videos") {
+		if strings.HasSuffix(sp.path, "Music") {
 			vid = sp
 		}
 	}
 	p.Mouse(click(p.contentLeft+vid.x0+1, p.placeY))
-	if filepath.Base(p.dir) != "Videos" || p.zone != zoneList {
+	if filepath.Base(p.dir) != "Music" || p.zone != zoneList {
 		t.Fatalf("dir=%s zone=%d", p.dir, p.zone)
 	}
 }

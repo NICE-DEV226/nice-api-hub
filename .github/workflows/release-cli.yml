@@ -63,7 +63,7 @@ jobs:
           grep -q "^\$Pinned = '$VERSION'" dist/install.ps1 || { echo "::error::install.ps1 was not pinned"; exit 1; }
           (cd dist && sha256sum *.tar.gz *.zip install.sh install.ps1 > SHA256SUMS && cat SHA256SUMS)
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nah-dist
           path: cli/dist/*

@@ -100,7 +100,7 @@ Every push and pull request runs the workflows of the folder it touches (`.githu
 
 | Workflow | Runs when | What it checks |
 |---|---|---|
-| `cli.yml` | `cli/**` changes | vet and tests on **Linux (Intel and ARM), macOS and Windows**, gofmt, a real run of the built binary, a compile check of all six release targets, `govulncheck` |
+| `cli.yml` | `cli/**` changes | vet and tests on **Linux (Intel and ARM), macOS and Windows**, gofmt, a real run of the built binary, the installers and `nah update` on each system, a compile check of all six release targets, `govulncheck` |
 | `api.yml` | `api/**` changes | type check, tests against real Postgres and Redis, build, `npm audit`, Docker image build and smoke test |
 | `probe.yml` | every day | each provider against the real upstream service (fails when a site changes) |
 
@@ -118,13 +118,17 @@ git tag cli/v0.2.0
 git push origin cli/v0.2.0
 ```
 
-`release-cli.yml` then runs the tests, builds Linux, macOS and Windows archives (Intel/AMD and ARM), verifies each against
-`SHA256SUMS`, unpacks and runs the ones a runner can execute on their own system, attests where the files came from, and publishes a
-GitHub release whose notes are the history of `cli/` since the previous tag. A version with a suffix (`cli/v0.2.0-rc.1`) is published as a
+`release-cli.yml` then runs the tests, builds Linux, macOS and Windows archives (Intel/AMD and ARM), attaches `install.sh` and
+`install.ps1` **pinned to this version** (all covered by `SHA256SUMS`), verifies each archive, and on Linux (Intel and ARM), macOS and
+Windows unpacks and runs the program, runs the installers and `nah update` against the very files about to be published, attests where
+the files came from, publishes the GitHub release, and finally installs from the *published* release the way its notes tell people to,
+on each system. A version with a suffix (`cli/v0.2.0-rc.1`) is published as a
 pre-release.
 
 To rehearse without publishing anything: *Actions → Release CLI → Run workflow*. It builds and verifies everything and leaves the
-archives as workflow artifacts. Locally, `cd cli && make dist VERSION=0.2.0` builds the same archives into `cli/dist/`.
+archives as workflow artifacts. Locally, `cd cli && make dist VERSION=0.2.0` builds the same archives into `cli/dist/`, and
+`bash scripts/test-installers.sh dist 0.2.0` runs the installer and update tests against them on your system (it starts a local server
+that imitates GitHub, so nothing leaves your machine; needs Python 3 and Go).
 
 Versions follow [semantic versioning](https://semver.org): a breaking change to commands, flags, exit codes or the file layout is a
 new major version (or a new minor while the app is below 1.0).

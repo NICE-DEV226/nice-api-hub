@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -331,7 +332,7 @@ func TestHiddenFoldersAppearWhenAskedOrWhenTypingADot(t *testing.T) {
 }
 
 func TestAFolderThatCannotBeWrittenIsRefusedWithAnExplanation(t *testing.T) {
-	if os.Getuid() == 0 {
+	if runtime.GOOS == "windows" || os.Getuid() == 0 { // no Unix permission bits on Windows; root can write anywhere
 		t.Skip("root can write anywhere")
 	}
 	env, home := pickerEnv(t, "ro")

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -100,8 +101,12 @@ func TestBogusOrMissingIDsFallBackToAStableInstallID(t *testing.T) {
 			t.Fatalf("case %d: the install id must be stable across runs", i)
 		}
 	}
-	if st, err := os.Stat(filepath.Join(dir, "install-id")); err != nil || st.Mode().Perm() != 0o600 {
-		t.Fatalf("install id file: %v %v", st, err)
+	st, err := os.Stat(filepath.Join(dir, "install-id"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 { // Windows has no Unix permission bits
+		t.Fatalf("install id file mode %v", st.Mode().Perm())
 	}
 }
 

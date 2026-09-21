@@ -4,6 +4,7 @@ package opener
 import (
 	"errors"
 	"os/exec"
+	posixpath "path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -26,7 +27,7 @@ func Command(goos, path string, reveal bool) (string, []string) {
 		return "rundll32", []string{"url.dll,FileProtocolHandler", path}
 	default:
 		if reveal {
-			path = filepath.Dir(path) // there is no portable "select this file" on Linux
+			path = posixpath.Dir(path) // there is no portable "select this file" on Linux
 		}
 		return "xdg-open", []string{path}
 	}

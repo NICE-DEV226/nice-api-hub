@@ -42,13 +42,15 @@ func TestConfigAndDataDirsFollowEachPlatformsConvention(t *testing.T) {
 		{"windows", env("windows", map[string]string{"AppData": `C:\Users\ada\AppData\Roaming`, "LocalAppData": `C:\Users\ada\AppData\Local`}, `C:\Users\ada`),
 			filepath.Join(`C:\Users\ada\AppData\Roaming`, "nah"), filepath.Join(`C:\Users\ada\AppData\Local`, "nah")},
 	}
+	// the expectations are written with "/": compare without the platform's separator so the test also passes on Windows
+	same := func(a, b string) bool { return filepath.ToSlash(a) == filepath.ToSlash(b) }
 	for _, c := range cases {
 		gotC, err := c.e.ConfigDir()
-		if err != nil || gotC != c.config {
+		if err != nil || !same(gotC, c.config) {
 			t.Errorf("%s config: %q %v want %q", c.name, gotC, err, c.config)
 		}
 		gotD, err := c.e.DataDir()
-		if err != nil || gotD != c.data {
+		if err != nil || !same(gotD, c.data) {
 			t.Errorf("%s data: %q %v want %q", c.name, gotD, err, c.data)
 		}
 	}

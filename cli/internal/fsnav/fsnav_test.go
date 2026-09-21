@@ -91,7 +91,13 @@ func TestCrumbsShortenHomeAndKeepEverySegmentClickable(t *testing.T) {
 	}
 }
 
+// fakeEnv is an emulated system. Its folders are given with "/" and matched ignoring the platform's separator, so the tests
+// give the same answer on Windows, where filepath.Join produces backslashes.
 func fakeEnv(goos, home string, dirs map[string]bool, drives ...string) Env {
+	norm := map[string]bool{}
+	for d, ok := range dirs {
+		norm[filepath.ToSlash(d)] = ok
+	}
 	return Env{GOOS: goos, Home: func() (string, error) { return home, nil },
 		Getenv: func(k string) string {
 			if k == "USER" {
@@ -99,7 +105,7 @@ func fakeEnv(goos, home string, dirs map[string]bool, drives ...string) Env {
 			}
 			return ""
 		},
-		IsDir: func(p string) bool { return dirs[p] }, Drives: func() []string { return drives }}
+		IsDir: func(p string) bool { return norm[filepath.ToSlash(p)] }, Drives: func() []string { return drives }}
 }
 
 func labels(ps []Place) []string {
@@ -229,10 +235,12 @@ func TestWritable(t *testing.T) {
 }
 
 func TestShortElidesTheMiddleAndKeepsHomeReadable(t *testing.T) {
-	if got := Short("/home/ada/Videos", "/home/ada", 40); got != "~/Videos" {
+	sep := string(filepath.Separator)
+	home := sep + "home" + sep + "ada"
+	if got := Short(filepath.Join(home, "Videos"), home, 40); got != "~"+sep+"Videos" {
 		t.Fatal(got)
 	}
-	if got := Short("/home/ada", "/home/ada", 40); got != "~" {
+	if got := Short(home, home, 40); got != "~" {
 		t.Fatal(got)
 	}
 	long := "/srv/data/very/long/path/to/some/deeply/nested/folder"

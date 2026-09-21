@@ -24,6 +24,12 @@ case "$(uname -s)" in
   *) echo "unsupported system $(uname -s)"; exit 2 ;;
 esac
 EXT=""; [ "$OS" = windows ] && EXT=".exe"
+case "$(uname -m)" in
+  x86_64|amd64|AMD64) ARCH=amd64 ;;
+  aarch64|arm64|ARM64) ARCH=arm64 ;;
+  *) ARCH="${PROCESSOR_ARCHITECTURE:-unknown}" ;;
+esac
+[ "$OS" = windows ] && case "${PROCESSOR_ARCHITECTURE:-}" in ARM64) ARCH=arm64 ;; AMD64) ARCH=amd64 ;; esac
 
 cleanup() { for p in $SERVERS; do kill "$p" 2>/dev/null || true; done; rm -rf "$T"; }
 trap cleanup EXIT
@@ -38,19 +44,24 @@ must_fail() { # description, then a command that must fail
   local d="$1"; shift
   if "$@" >"$T/out" 2>&1; then bad "$d (it succeeded)"; sed 's/^/        | /' "$T/out" | tail -8; else ok "$d"; fi
 }
-archive_for_os() { # dir -> the name of this system's archive in it
+archive_for_os() { # dir -> the name of THIS system's archive in it (system and processor), nothing else
   local f
-  for f in "$1"/*_"${OS}"_*; do basename "$f"; return; done
+  for f in "$1"/*_"${OS}"_"${ARCH}".*; do basename "$f"; return; done
 }
 winpath() { if [ "$OS" = windows ]; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
 
 serve() { # dir -> sets BASE and API
   local port="$T/port.$RANDOM"
-  "$PY" "$CLI/scripts/serve-release.py" "$1" "$VERSION" --port-file "$port" >/dev/null 2>&1 &
+  local log="$port.log"
+  "$PY" -u "$CLI/scripts/serve-release.py" "$1" "$VERSION" --port-file "$port" >"$log" 2>&1 &
   SERVERS="$SERVERS $!"
   local i=0
-  while [ ! -s "$port" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
-  [ -s "$port" ] || { echo "the test server did not start"; exit 2; }
+  while [ ! -s "$port" ] && [ $i -lt 150 ]; do sleep 0.1; i=$((i + 1)); done
+  if [ ! -s "$port" ]; then
+    echo "the test server did not start (python: $("$PY" --version 2>&1), dir: $1)"
+    echo "--- server output:"; cat "$log" 2>&1 | tail -20
+    exit 2
+  fi
   BASE="http://127.0.0.1:$(cat "$port")/dl"
   API="http://127.0.0.1:$(cat "$port")/releases"
 }
@@ -101,6 +112,7 @@ run_scenarios() {
   # a download that does not match its checksum is refused, and nothing is installed
   local evil="$T/evil.$RANDOM"; mkdir -p "$evil"; cp "$DIST"/* "$evil"/
   local archive; archive="$(archive_for_os "$evil")"
+  [ -n "$archive" ] && [ -f "$evil/$archive" ] || { bad "no archive for ${OS}/${ARCH} in $DIST"; return; }
   printf 'x' >>"$evil/$archive"
   serve "$evil"
   must_fail "a tampered archive is refused" \
@@ -122,6 +134,7 @@ run_update_scenarios() {
   # a tampered download must leave the old program exactly as it was
   local evil="$T/uevil.$RANDOM"; mkdir -p "$evil"; cp "$DIST"/* "$evil"/
   local archive; archive="$(archive_for_os "$evil")"
+  [ -n "$archive" ] && [ -f "$evil/$archive" ] || { bad "no archive for ${OS}/${ARCH} in $DIST"; return; }
   printf 'x' >>"$evil/$archive"
   serve "$evil"
   must_fail "an update from a tampered download is refused" env NAH_UPDATE_API="$API" "$old" update --pre --yes

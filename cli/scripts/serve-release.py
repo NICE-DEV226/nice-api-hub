@@ -58,6 +58,12 @@ def main():
     class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
         daemon_threads = True
 
+        def server_bind(self):
+            # HTTPServer.server_bind() asks the network for the reverse-DNS name of the address, which can take many seconds
+            # (macOS runners) and is useless for a server on 127.0.0.1: bind without it.
+            socketserver.TCPServer.server_bind(self)
+            self.server_name, self.server_port = self.server_address[0], self.server_address[1]
+
     server = Server(("127.0.0.1", 0), Handler)
     base = "http://127.0.0.1:%d" % server.server_address[1]
     if port_file:

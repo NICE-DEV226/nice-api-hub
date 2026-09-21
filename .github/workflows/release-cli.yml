@@ -1,0 +1,161 @@
+name: Release CLI
+
+# Publishing a release = pushing a tag:   git tag cli/v0.2.0 && git push origin cli/v0.2.0
+# Running this workflow by hand only builds and verifies the archives (nothing is published), to try the pipeline safely.
+on:
+  push:
+    tags: ["cli/v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to stamp on the trial build (no v, no cli/)"
+        default: "0.0.0-trial"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: build all platforms
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # release notes read the history since the previous tag
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      - name: Work out the version
+        id: v
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/cli/v* ]]; then v="${GITHUB_REF_NAME#cli/v}"; else v="${{ inputs.version }}"; fi
+          if ! [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then echo "::error::'$v' is not a semantic version (1.2.3 or 1.2.3-rc.1)"; exit 1; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Never ship a broken build
+        working-directory: cli
+        run: |
+          make fmt-check
+          go vet ./...
+          go test -count=1 ./...
+
+      - name: Build the archives
+        working-directory: cli
+        run: make dist VERSION="${{ steps.v.outputs.version }}" COMMIT="$(git rev-parse --short HEAD)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nah-dist
+          path: cli/dist/*
+          if-no-files-found: error
+
+  # The archives are built on Linux; run the ones a runner can execute, on the system they are for.
+  verify:
+    name: verify (${{ matrix.name }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-amd64,   os: ubuntu-latest,    file: linux_amd64.tar.gz }
+          - { name: linux-arm64,   os: ubuntu-24.04-arm, file: linux_arm64.tar.gz }
+          - { name: macos-arm64,   os: macos-latest,     file: darwin_arm64.tar.gz }
+          - { name: windows-amd64, os: windows-latest,   file: windows_amd64.zip }
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nah-dist
+          path: dist
+      - name: Check the checksum
+        working-directory: dist
+        run: |
+          f="nah_${{ needs.build.outputs.version }}_${{ matrix.file }}"
+          expected="$(grep " $f\$" SHA256SUMS | cut -d' ' -f1)"
+          if command -v sha256sum >/dev/null; then actual="$(sha256sum "$f" | cut -d' ' -f1)"; else actual="$(shasum -a 256 "$f" | cut -d' ' -f1)"; fi
+          [ -n "$expected" ] && [ "$expected" = "$actual" ] || { echo "::error::checksum mismatch for $f"; exit 1; }
+      - name: Unpack and run it
+        working-directory: dist
+        run: |
+          f="nah_${{ needs.build.outputs.version }}_${{ matrix.file }}"
+          case "$f" in
+            *.zip) python -m zipfile -e "$f" . ;;
+            *)     tar -xzf "$f" ;;
+          esac
+          bin="$(find . -maxdepth 2 -name 'nah' -o -maxdepth 2 -name 'nah.exe' | head -1)"
+          chmod +x "$bin" 2>/dev/null || true
+          out="$("$bin" version)"
+          echo "$out"
+          case "$out" in *"${{ needs.build.outputs.version }}"*) ;; *) echo "::error::the binary does not report version ${{ needs.build.outputs.version }}"; exit 1 ;; esac
+          "$bin" --help > /dev/null
+
+  publish:
+    name: publish the release
+    needs: [build, verify]
+    if: startsWith(github.ref, 'refs/tags/cli/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # create the release
+      id-token: write     # sign the build provenance
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: nah-dist
+          path: dist
+
+      - name: Attest where these files came from
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
+
+      - name: Write the release notes
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          prev="$(git tag --list 'cli/v*' --sort=-v:refname | grep -vx "$GITHUB_REF_NAME" | head -1 || true)"
+          {
+            echo "## nah $VERSION"
+            echo
+            echo "### Install"
+            echo
+            echo "Download the archive for your system below, check it against \`SHA256SUMS\`, unpack it, and put \`nah\` somewhere on your PATH."
+            echo
+            echo "| System | File |"
+            echo "|---|---|"
+            echo "| Linux (Intel/AMD, ARM) | \`nah_${VERSION}_linux_amd64.tar.gz\`, \`nah_${VERSION}_linux_arm64.tar.gz\` |"
+            echo "| macOS (Intel, Apple Silicon) | \`nah_${VERSION}_darwin_amd64.tar.gz\`, \`nah_${VERSION}_darwin_arm64.tar.gz\` |"
+            echo "| Windows (Intel/AMD, ARM) | \`nah_${VERSION}_windows_amd64.zip\`, \`nah_${VERSION}_windows_arm64.zip\` |"
+            echo
+            echo "Every file is covered by a signed build attestation: \`gh attestation verify <file> --repo $GITHUB_REPOSITORY\`."
+            echo
+            echo "### Changes"
+            echo
+            if [ -n "$prev" ]; then range="$prev..$GITHUB_SHA"; else range="$GITHUB_SHA"; fi
+            log="$(git log --no-merges --pretty='- %s (%h)' "$range" -- cli)"
+            if [ -n "$log" ]; then echo "$log"; else echo "First release."; fi
+          } > notes.md
+          cat notes.md
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          flags=""
+          case "$VERSION" in *-*) flags="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "nah $VERSION" --notes-file notes.md $flags

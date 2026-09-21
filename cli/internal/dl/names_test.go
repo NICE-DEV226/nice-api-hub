@@ -20,7 +20,7 @@ func TestSafeName(t *testing.T) {
 		{"comfort.mp4", "comfort.mp4"},
 		{"name. . ", "name"},
 		{"tab\there\x00nul.mp4", "tabherenul.mp4"},
-		{"evil‮gnp.exe", "evilgnp.exe"}, // bidi override removed
+		{"evil\u202egnp.exe", "evilgnp.exe"}, // bidi override removed
 		{"", "download"},
 		{"..", "download"},
 		{".hidden", ".hidden"},

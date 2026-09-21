@@ -18,9 +18,6 @@ build
 .env.test.local
 .env.production.local
 .env.production
-apps/api/.env
-apps/web/.env
-packages/database/.env
 
 # Logs
 logs
@@ -84,5 +81,5 @@ secrets/
 .dev-data
 
 # nah CLI build output
-apps/cli/bin
-apps/cli/dist
+cli/bin
+cli/dist

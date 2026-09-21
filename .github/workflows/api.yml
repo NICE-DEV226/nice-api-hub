@@ -1,0 +1,65 @@
+name: API
+
+# Validates the API on every push and pull request that touches it.
+on:
+  push:
+    branches: [main, "v2/**"]
+    paths: ["api/**", ".github/workflows/api.yml"]
+  pull_request:
+    paths: ["api/**", ".github/workflows/api.yml"]
+
+concurrency:
+  group: api-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: api
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: { POSTGRES_USER: nah, POSTGRES_PASSWORD: nah, POSTGRES_DB: nah_test }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U nah" --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://nah:nah@127.0.0.1:5432/nah_test
+      TEST_REDIS_URL: redis://127.0.0.1:6379/1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: api/package-lock.json }
+      - run: npm ci
+      - run: ffmpeg -version | head -1   # preinstalled on the runner; the download tests use it
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  dependencies:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: api/package-lock.json }
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t nice-api-hub:ci .
+      - run: docker run --rm --entrypoint sh nice-api-hub:ci -c 'yt-dlp --version && ffmpeg -version | head -1 && node -v'

@@ -88,3 +88,46 @@ jobs:
           check-latest: true
           cache-dependency-path: cli/go.sum
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  # The installers and `nah update` are tested for real, on each system, against archives built from this very commit.
+  package:
+    name: package (for the installer tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+          cache-dependency-path: cli/go.sum
+      - run: make dist VERSION=0.0.1-ci
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-dist
+          path: cli/dist/*
+          if-no-files-found: error
+
+  installers:
+    name: installers and update (${{ matrix.name }})
+    needs: package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-amd64,   os: ubuntu-latest }
+          - { name: linux-arm64,   os: ubuntu-24.04-arm }
+          - { name: macos-arm64,   os: macos-latest }
+          - { name: windows-amd64, os: windows-latest }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+          cache-dependency-path: cli/go.sum
+      - uses: actions/download-artifact@v4
+        with:
+          name: ci-dist
+          path: cli/dist
+      - run: bash scripts/test-installers.sh dist 0.0.1-ci

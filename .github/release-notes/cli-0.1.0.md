@@ -11,5 +11,5 @@
 ### Known limits
 
 - Windows and macOS builds are tested by the CI on every change, but nobody has used the app by hand there yet. Reports are welcome.
-- No installer and no `nah update` yet: download, unpack, put `nah` on your `PATH`.
+- Only the newest release's installers check for pre-releases when you do not name a version: pass `--pre` (or `-Pre`) to be sure.
 - It needs an API to talk to; the address defaults to `http://localhost:3000`.

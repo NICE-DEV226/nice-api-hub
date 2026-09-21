@@ -52,6 +52,17 @@ jobs:
         working-directory: cli
         run: make dist VERSION="${{ steps.v.outputs.version }}" COMMIT="$(git rev-parse --short HEAD)"
 
+      # Every release carries its own installers, fixed to its own version, and they are covered by the same checksums.
+      - name: Attach installers pinned to this release
+        working-directory: cli
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          for f in install.sh install.ps1; do sed "s/__NAH_PINNED_VERSION__/$VERSION/" "$f" > "dist/$f"; done
+          grep -q "^PINNED=\"$VERSION\"" dist/install.sh || { echo "::error::install.sh was not pinned"; exit 1; }
+          grep -q "^\$Pinned = '$VERSION'" dist/install.ps1 || { echo "::error::install.ps1 was not pinned"; exit 1; }
+          (cd dist && sha256sum *.tar.gz *.zip install.sh install.ps1 > SHA256SUMS && cat SHA256SUMS)
+
       - uses: actions/upload-artifact@v4
         with:
           name: nah-dist
@@ -72,6 +83,12 @@ jobs:
           - { name: macos-arm64,   os: macos-latest,     file: darwin_arm64.tar.gz }
           - { name: windows-amd64, os: windows-latest,   file: windows_amd64.zip }
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+          cache-dependency-path: cli/go.sum
       - uses: actions/download-artifact@v4
         with:
           name: nah-dist
@@ -97,6 +114,8 @@ jobs:
           echo "$out"
           case "$out" in *"${{ needs.build.outputs.version }}"*) ;; *) echo "::error::the binary does not report version ${{ needs.build.outputs.version }}"; exit 1 ;; esac
           "$bin" --help > /dev/null
+      - name: Installers and update, on this system
+        run: bash cli/scripts/test-installers.sh dist "${{ needs.build.outputs.version }}"
 
   publish:
     name: publish the release
@@ -138,7 +157,21 @@ jobs:
             if [ -f "$notes" ]; then cat "$notes"; echo; fi
             echo "### Install"
             echo
-            echo "Download the archive for your system below, check it against \`SHA256SUMS\`, unpack it, and put \`nah\` somewhere on your PATH."
+            echo "**Linux and macOS**"
+            echo
+            echo '```sh'
+            echo "curl -fsSL https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/install.sh | sh"
+            echo '```'
+            echo
+            echo "**Windows (PowerShell)**"
+            echo
+            echo '```powershell'
+            echo "irm https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/install.ps1 | iex"
+            echo '```'
+            echo
+            echo "Both install exactly this version, check it against \`SHA256SUMS\`, and need no administrator rights. Later, run \`nah update\`."
+            echo
+            echo "Or download the archive for your system below, check it against \`SHA256SUMS\`, unpack it, and put \`nah\` somewhere on your PATH."
             echo
             echo "| System | File |"
             echo "|---|---|"
@@ -165,3 +198,48 @@ jobs:
           flags=""
           case "$VERSION" in *-*) flags="--prerelease" ;; esac
           gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "nah $VERSION" --notes-file notes.md $flags
+
+  # The last word: install from the release that was just published, exactly as its notes tell people to, on each system.
+  published:
+    name: installed from the release (${{ matrix.name }})
+    needs: [build, publish]
+    if: startsWith(github.ref, 'refs/tags/cli/v')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-amd64,   os: ubuntu-latest }
+          - { name: linux-arm64,   os: ubuntu-24.04-arm }
+          - { name: macos-arm64,   os: macos-latest }
+          - { name: windows-amd64, os: windows-latest }
+    steps:
+      - name: Install with the one-line command (Linux, macOS)
+        if: runner.os != 'Windows'
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          GITHUB_TOKEN: ${{ github.token }} # only to raise the API rate limit for `nah update --check`
+        run: |
+          export NAH_INSTALL_DIR="$RUNNER_TEMP/bin"
+          curl -fsSL --retry 6 --retry-delay 5 --retry-all-errors "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/install.sh" | sh
+          out="$("$NAH_INSTALL_DIR/nah" version)"; echo "$out"
+          case "$out" in *"nah $VERSION "*) ;; *) echo "::error::installed '$out', expected $VERSION"; exit 1 ;; esac
+          "$NAH_INSTALL_DIR/nah" update --check
+      - name: Install with the one-line command (Windows PowerShell)
+        if: runner.os == 'Windows'
+        shell: powershell
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $env:NAH_INSTALL_DIR = "$env:RUNNER_TEMP\nah"
+          $url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/install.ps1"
+          for ($i = 1; $i -le 6; $i++) {
+            try { $script = Invoke-RestMethod -UseBasicParsing -Uri $url; break }
+            catch { if ($i -eq 6) { throw }; Start-Sleep -Seconds 5 }
+          }
+          Invoke-Expression $script
+          $out = & "$env:NAH_INSTALL_DIR\nah.exe" version
+          Write-Host $out
+          if ($out -notlike "*nah $env:VERSION *") { throw "installed '$out', expected $env:VERSION" }
+          & "$env:NAH_INSTALL_DIR\nah.exe" update --check

@@ -39,7 +39,7 @@ jobs:
       TEST_REDIS_URL: redis://127.0.0.1:6379/1
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm, cache-dependency-path: api/package-lock.json }
       - run: npm ci
       - run: ffmpeg -version | head -1   # preinstalled on the runner; the download tests use it
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm, cache-dependency-path: api/package-lock.json }
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high

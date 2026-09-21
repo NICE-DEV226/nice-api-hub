@@ -150,9 +150,10 @@ jobs:
             echo
             echo "### Changes"
             echo
-            if [ -n "$prev" ]; then range="$prev..$GITHUB_SHA"; else range="$GITHUB_SHA"; fi
-            log="$(git log --no-merges --pretty='- %s (%h)' "$range" -- cli)"
-            if [ -n "$log" ]; then echo "$log"; else echo "First release."; fi
+            # the first release has no previous tag to compare with: the highlights above are its changelog
+            log=""
+            if [ -n "$prev" ]; then log="$(git log --no-merges --pretty='- %s (%h)' "$prev..$GITHUB_SHA" -- cli)"; fi
+            if [ -n "$log" ]; then echo "$log"; else echo "First release: everything above is new."; fi
           } > notes.md
           cat notes.md
 

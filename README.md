@@ -24,10 +24,26 @@ scripts. Everything in the interface works with the keyboard *and* the mouse: cl
 
 ### Install
 
-**From a release** (recommended): open the [Releases page](https://github.com/NICE-DEV226/nice-api-hub/releases), pick the archive for your system
-(`nah_<version>_linux_amd64.tar.gz`, `darwin_arm64`, `windows_amd64.zip`…), check it against `SHA256SUMS`, unpack it and put `nah` on
-your `PATH`. Releases are built and tested on Linux, macOS and Windows by [GitHub Actions](.github/workflows/release-cli.yml).
-No release has been published yet, so for now:
+**Linux and macOS**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/NICE-DEV226/nice-api-hub/main/cli/install.sh | sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/NICE-DEV226/nice-api-hub/main/cli/install.ps1 | iex
+```
+
+Each release also carries an installer fixed to its own version (`install.sh`, `install.ps1` on its page), so a release page is
+enough to install exactly that version. The installers work out your system and processor, download the archive, **check it against
+the release's `SHA256SUMS` and refuse to install on any mismatch**, and put `nah` in a folder you own (`~/.local/bin`, or
+`%LOCALAPPDATA%\Programs\nah`): no administrator rights, nothing else touched. Then keep it current with `nah update`.
+
+Or pick an archive by hand on the [Releases page](https://github.com/NICE-DEV226/nice-api-hub/releases) (Linux, macOS, Windows; Intel/AMD and ARM),
+check it against `SHA256SUMS`, unpack it and put `nah` on your `PATH`. Releases are built and tested on all three systems by
+[GitHub Actions](.github/workflows/release-cli.yml), installers and `nah update` included.
 
 **From source** (needs Go 1.26 or newer; produces one static binary):
 
@@ -99,8 +115,8 @@ Everything else (endpoints, configuration, architecture, operations, adding a pr
 
 Things this README does **not** promise, so you are not surprised:
 
-- **No release has been published yet.** The pipeline exists and is exercised on every change, but nobody has tagged `cli/v0.1.0`.
-  A one-line installer (`install.sh`, `install.ps1`) and `nah update` are planned.
+- **Only a pre-release exists so far** (`cli/v0.1.0-rc.1`, which predates the installers). Until a final release is published, the
+  installers pick the newest pre-release and say so.
 - **The interface has Dashboard, Accounts (operator) and the download screen.** Download history is available as commands
   (`nah history`, `nah again`); History, Devices and Settings *tabs* are not in the interface yet.
 - **`nah` was run for real on Linux only.** The macOS and Windows builds compile and their platform code (machine id,

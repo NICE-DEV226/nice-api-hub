@@ -15,7 +15,29 @@ Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea), Bubbles, Li
 
 ## Install
 
-**From a release** (recommended): download the archive for your system from the
+**Linux and macOS**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/NICE-DEV226/nice-api-hub/main/cli/install.sh | sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/NICE-DEV226/nice-api-hub/main/cli/install.ps1 | iex
+```
+
+Each release also carries an installer fixed to its own version (`install.sh`, `install.ps1` on its page), so a release page is
+enough to install exactly that version. The installers work out your system and processor, download the archive, **check it against
+the release's `SHA256SUMS` and refuse to install on any mismatch**, and put `nah` in a folder you own (`~/.local/bin`, or
+`%LOCALAPPDATA%\Programs\nah`): no administrator rights, nothing else touched. Then keep it current with `nah update`.
+
+Options (after `sh -s --`, or as environment variables when piping): `--version 0.2.0` / `NAH_VERSION`, `--pre` / `NAH_PRE=1` to accept
+pre-releases when picking the latest, `--dir DIR` / `NAH_INSTALL_DIR`. PowerShell: `-Version`, `-Pre`, `-Dir`, `-NoPathUpdate`, and the
+same environment variables. To uninstall, delete the `nah` file the installer printed (and, if you want, the settings folder listed under
+[Files and settings](#files-and-settings)).
+
+**By hand:** download the archive for your system from the
 [Releases page](https://github.com/NICE-DEV226/nice-api-hub/releases), unpack it and put `nah` on your `PATH`.
 
 | System | Archive |
@@ -25,7 +47,7 @@ Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea), Bubbles, Li
 | Windows | `nah_<version>_windows_amd64.zip`, `nah_<version>_windows_arm64.zip` |
 
 Check the download with `SHA256SUMS` (`sha256sum -c --ignore-missing SHA256SUMS`), and, if you use the GitHub CLI, that it was built by this
-repository's workflow: `gh attestation verify <archive> --repo NICE-DEV226/nice-api-hub`. No release has been published yet.
+repository's workflow: `gh attestation verify <archive> --repo NICE-DEV226/nice-api-hub`.
 
 **From source** (needs Go 1.26 or newer):
 
@@ -164,6 +186,7 @@ Not in the interface yet: History, Devices and Settings tabs. Use `nah history`,
 | `nah account` · `nah usage` | Plan, limits, webhook secret (`--show-secret`), today's quota and recent usage |
 | `nah status` | Gateway health and platform availability (needs no credentials). Exits `1` if something is down |
 | `nah version` · `nah config show\|list\|use\|path` | Version · inspect and switch profiles |
+| `nah update` | Update nah itself: `--check` only looks, `--pre` accepts pre-releases, `--version X` picks one (also to go back), `--yes` skips the question. Downloads the archive for this system, checks it against the release's `SHA256SUMS`, and replaces the running program; nothing changes if any step fails |
 
 **Accounts and computers**
 
@@ -214,6 +237,8 @@ Settings resolve in this order: flag → environment → profile → default.
 | `NAH_CONFIG` | Path of the config file itself |
 | `NAH_CONFIG_DIR` · `NAH_DATA_DIR` · `NAH_DOWNLOAD_DIR` | Override the folders below |
 | `NAH_DEVICE_ID` | Pretend to be another computer (testing): replaces the machine identifier |
+| `NAH_UPDATE_API` | Where `nah update` reads the list of releases (a mirror, or a test server) |
+| `GITHUB_TOKEN` / `NAH_GITHUB_TOKEN` | Raises GitHub's limit on anonymous calls for `nah update` and the installers. Sent only to `api.github.com` |
 | `NAH_NERD_FONT` | `1` = rounded pills, `0` = flat. Rounded needs a terminal font with Powerline symbols (a Nerd Font), otherwise the ends show as empty boxes, so it is off by default. **Press `Ctrl+R` in the interface to switch it live**; the choice is remembered (this variable overrides it) |
 | `NAH_NO_KEYRING` | Skip the system keychain and use the private file (servers, containers, CI) |
 

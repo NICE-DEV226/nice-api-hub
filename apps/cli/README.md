@@ -130,7 +130,7 @@ One rule does most of the work: **the first row is always "Save in this folder"*
 | Go into the highlighted folder / go up | `→` (or `Enter`) / `←` or `Backspace` |
 | Filter the folders here | Just type. The cursor jumps to the first match, `Enter` opens it |
 | Jump to a path | Type or paste one (`/srv/media`, `~/Videos`, `C:\Users\me`): `Tab` completes it, `Enter` goes there |
-| Jump to a usual place | Click a chip (Downloads, Documents, Videos/Movies, Music, external drives, Windows drives, `/`, your recent folders ★), or `Tab` / `Shift+Tab` to cycle |
+| Jump to a usual place | The row of shortcuts above the list (recent folders `»`, Downloads, Documents, Videos/Movies, Music, external drives, Windows drives, `/`). By keyboard: `↑` from the top of the list, or `Tab`, moves onto it; `←` `→` choose (the row scrolls when it does not fit, `‹` `›` show more), `Enter` goes there, `↓` or `Esc` gives the list back. Or click one |
 | Jump to a parent | Click any part of the path at the top (`~ › Videos › 2026`) |
 | Create a folder | `+`, type a name, `Enter`: you land inside it |
 | Show hidden folders | `Ctrl+T` (typing a `.` also reveals them) |

@@ -139,20 +139,147 @@ func TestTypingAPathCompletesWithTabAndJumpsWithEnter(t *testing.T) {
 	}
 }
 
-func TestPlacesAreCycledByTabAndRecentFoldersComeFirst(t *testing.T) {
+func TestRecentFoldersComeFirstInTheShortcuts(t *testing.T) {
 	env, home := pickerEnv(t, "Downloads", "Documents", "work/clips")
 	recent := filepath.Join(home, "work", "clips")
 	p := newFolderPicker(env, home, filepath.Join(home, "Downloads"), []string{recent})
 	if p.places[0].Path != recent || !strings.HasPrefix(p.places[0].Label, "» ") {
 		t.Fatalf("%+v", p.places)
 	}
+}
+
+func TestTheShortcutsAreReachableFromTheKeyboard(t *testing.T) {
+	env, home := pickerEnv(t, "Downloads", "Documents", "Videos", "Music")
+	p := newFolderPicker(env, home, filepath.Join(home, "Downloads"), nil)
+	if p.zone != zoneList {
+		t.Fatal("the list has the keyboard at first")
+	}
+	// Up from the top of the list moves onto the shortcuts
+	p.Update(keyMsg("up"))
+	if p.zone != zonePlaces || p.g.focused {
+		t.Fatalf("zone=%d gridFocused=%v", p.zone, p.g.focused)
+	}
+	first := p.placeFocus
+	p.Update(keyMsg("right"))
+	if p.placeFocus != first+1 {
+		t.Fatalf("→ moves to the next shortcut: %d -> %d", first, p.placeFocus)
+	}
+	p.Update(keyMsg("left"))
+	p.Update(keyMsg("left"))
+	if p.placeFocus != (first-1+len(p.places))%len(p.places) {
+		t.Fatalf("← moves back and wraps: %d", p.placeFocus)
+	}
+	// pick one and go there
+	for i, pl := range p.places {
+		if strings.HasSuffix(pl.Path, "Videos") {
+			p.placeFocus = i
+		}
+	}
+	p.Update(keyMsg("enter"))
+	if filepath.Base(p.dir) != "Videos" || p.zone != zoneList || !p.g.focused || p.done {
+		t.Fatalf("Enter goes there and hands the keyboard back to the list: dir=%s zone=%d done=%v", p.dir, p.zone, p.done)
+	}
+}
+
+func TestLeavingTheShortcutsWithoutChoosing(t *testing.T) {
+	env, home := pickerEnv(t, "Downloads", "Videos")
+	p := newFolderPicker(env, home, filepath.Join(home, "Downloads"), nil)
+	p.Update(keyMsg("up"))
+	p.Update(keyMsg("down"))
+	if p.zone != zoneList || p.dir != home {
+		t.Fatal("↓ returns to the list without going anywhere")
+	}
+	p.Update(keyMsg("up"))
+	p.Update(keyMsg("esc"))
+	if p.zone != zoneList || p.done {
+		t.Fatal("Esc on the shortcuts goes back to the list; it does not close the picker")
+	}
+	p.Update(keyMsg("esc"))
+	if !p.done || p.chosen != "" {
+		t.Fatal("Esc on the list still cancels")
+	}
+}
+
+func TestTypingWhileOnTheShortcutsFiltersTheList(t *testing.T) {
+	env, home := pickerEnv(t, "Videos", "Music")
+	p := newFolderPicker(env, home, "", nil)
+	p.Update(keyMsg("up"))
+	typeText(p, "vid")
+	if p.zone != zoneList || p.filter != "vid" {
+		t.Fatalf("typing returns to the list and filters: zone=%d filter=%q", p.zone, p.filter)
+	}
+	if got := strings.Join(rowLabels(p), ","); got != "SAVE,Videos" {
+		t.Fatal(got)
+	}
+}
+
+func TestTabMovesOntoTheShortcutsAndThroughThem(t *testing.T) {
+	env, home := pickerEnv(t, "Downloads", "Documents", "Videos")
+	p := newFolderPicker(env, home, filepath.Join(home, "Downloads"), nil)
 	p.Update(keyMsg("tab"))
-	if p.dir != p.places[1].Path {
-		t.Fatalf("Tab jumps to the next place: %s", p.dir)
+	if p.zone != zonePlaces {
+		t.Fatal("Tab reaches the shortcuts")
+	}
+	before := p.placeFocus
+	p.Update(keyMsg("tab"))
+	if p.placeFocus != (before+1)%len(p.places) || p.dir != home {
+		t.Fatal("Tab moves the highlight and does not jump anywhere yet")
 	}
 	p.Update(keyMsg("shift+tab"))
-	if p.dir != p.places[0].Path {
-		t.Fatalf("Shift+Tab goes back: %s", p.dir)
+	if p.placeFocus != before {
+		t.Fatal("Shift+Tab goes back")
+	}
+	// while typing a path, Tab still completes
+	p.Update(keyMsg("esc"))
+	typeText(p, "~/Vi")
+	p.Update(keyMsg("tab"))
+	if p.zone != zoneList || p.filter != "~/Videos/" {
+		t.Fatalf("path completion is unchanged: zone=%d filter=%q", p.zone, p.filter)
+	}
+}
+
+func TestTheHighlightedShortcutIsShownAndStaysInViewWhenTheyDoNotAllFit(t *testing.T) {
+	env, home := pickerEnv(t, "Downloads", "Desktop", "Documents", "Videos", "Music", "Pictures")
+	p := newFolderPicker(env, home, filepath.Join(home, "Downloads"), []string{})
+	// a narrow card: not every shortcut fits on the one line
+	out := p.View(56, 30)
+	if !strings.Contains(out, "›") {
+		t.Fatalf("a marker must say there are more shortcuts:\n%s", out)
+	}
+	p.Update(keyMsg("up")) // onto the shortcuts
+	p.Update(keyMsg("end"))
+	out = p.View(56, 30)
+	last := p.places[len(p.places)-1].Label
+	if !strings.Contains(out, last) || !strings.Contains(out, "‹") {
+		t.Fatalf("the last shortcut must be scrolled into view, with a marker for the hidden ones (%q):\n%s", last, out)
+	}
+	for _, l := range strings.Split(out, "\n") {
+		if lipglossWidth(l) > 56 {
+			t.Fatalf("a line is too wide: %d", lipglossWidth(l))
+		}
+	}
+	// every visible shortcut stays clickable at the position it was drawn
+	p.Update(keyMsg("home"))
+	p.View(56, 30)
+	if len(p.placeSpans) == 0 || p.placeSpans[0].path != p.places[0].Path {
+		t.Fatalf("spans: %+v", p.placeSpans)
+	}
+}
+
+func TestClickingAShortcutStillWorksAndHandsBackTheKeyboard(t *testing.T) {
+	env, home := pickerEnv(t, "Downloads", "Videos")
+	p := newFolderPicker(env, home, filepath.Join(home, "Downloads"), nil)
+	p.Update(keyMsg("up"))
+	p.View(110, 40)
+	var vid placeSpan
+	for _, sp := range p.placeSpans {
+		if strings.HasSuffix(sp.path, "Videos") {
+			vid = sp
+		}
+	}
+	p.Mouse(click(p.contentLeft+vid.x0+1, p.placeY))
+	if filepath.Base(p.dir) != "Videos" || p.zone != zoneList {
+		t.Fatalf("dir=%s zone=%d", p.dir, p.zone)
 	}
 }
 
@@ -290,7 +417,7 @@ func TestPickerViewStaysInsideTheTerminalAndShowsTheKeyHints(t *testing.T) {
 		}
 	}
 	out := p.View(100, 30)
-	for _, want := range []string{"Choose a folder", "Save in this folder", "Type to filter", "New folder"} {
+	for _, want := range []string{"Choose a folder", "Save in this folder", "type to filter", "New folder"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in\n%s", want, out)
 		}

@@ -151,7 +151,7 @@ func (m *playground) SetSize(w, h int) {
 func (m *playground) Help() []key.Binding {
 	b := func(k, h string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, h)) }
 	if m.picker != nil {
-		return []key.Binding{b("enter", "open / confirm"), b("←", "up"), b("tab", "places"), b("+", "new folder"), b("esc", "cancel")}
+		return []key.Binding{b("enter", "open / confirm"), b("←", "up"), b("↑", "shortcuts"), b("+", "new folder"), b("esc", "cancel")}
 	}
 	switch m.state {
 	case pgInput:

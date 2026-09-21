@@ -29,8 +29,11 @@ type folderPicker struct {
 	filter  string
 	rows    []pickRow
 	g       *grid
-	cursorP int // index into places used by Tab
-	err     error
+	// zone: which part has the keyboard. The list (default), or the row of shortcuts above it.
+	zone       int
+	placeFocus int // highlighted shortcut while zone == zonePlaces
+	placeStart int // first shortcut shown when they do not all fit
+	err        error
 
 	creating bool
 	newIn    textinput.Model
@@ -59,6 +62,11 @@ type folderPicker struct {
 	gridX, gridY          int
 	actsX, actsY          int
 }
+
+const (
+	zoneList = iota
+	zonePlaces
+)
 
 type pickKind int
 
@@ -237,6 +245,9 @@ func (p *folderPicker) Update(msg tea.Msg) tea.Cmd {
 		return p.updateCreating(km)
 	}
 	p.err = nil
+	if p.zone == zonePlaces && p.updatePlaces(km) {
+		return nil
+	}
 	switch km.String() {
 	case "esc":
 		if p.filter != "" {
@@ -268,7 +279,14 @@ func (p *folderPicker) Update(msg tea.Msg) tea.Cmd {
 		p.toggleHidden()
 	case "ctrl+a":
 		p.toggleAsk()
-	case "up", "down", "pgup", "pgdown", "home", "end":
+	case "up":
+		// the top of the list is the way up to the shortcuts
+		if p.g.Cursor() == 0 && len(p.places) > 0 {
+			p.focusPlaces()
+		} else {
+			p.g.Key("up")
+		}
+	case "down", "pgup", "pgdown", "home", "end":
 		p.g.Key(km.String())
 	case "+":
 		if p.filter == "" {
@@ -299,7 +317,7 @@ func (p *folderPicker) toggleHidden() {
 	p.reload()
 }
 
-// tab completes a typed path, otherwise cycles through the places.
+// tab completes a typed path; otherwise it moves onto the shortcuts above the list.
 func (p *folderPicker) tab(step int) tea.Cmd {
 	if fsnav.LooksLikePath(p.filter) {
 		if step > 0 {
@@ -309,12 +327,60 @@ func (p *folderPicker) tab(step int) tea.Cmd {
 		}
 		return nil
 	}
-	if len(p.places) == 0 {
-		return nil
+	if len(p.places) > 0 {
+		p.focusPlaces()
 	}
-	p.cursorP = (p.cursorP + step + len(p.places)) % len(p.places)
-	p.open(p.places[p.cursorP].Path)
 	return nil
+}
+
+// focusPlaces gives the keyboard to the row of shortcuts, starting on the one that is the current folder, if any.
+func (p *folderPicker) focusPlaces() {
+	p.zone = zonePlaces
+	p.g.Blur()
+	p.placeFocus = clampInt(p.placeFocus, 0, len(p.places)-1)
+	for i, pl := range p.places {
+		if filepath.Clean(pl.Path) == p.dir {
+			p.placeFocus = i
+			break
+		}
+	}
+}
+
+// focusList gives the keyboard back to the list of folders.
+func (p *folderPicker) focusList() {
+	p.zone = zoneList
+	p.g.Focus()
+}
+
+// updatePlaces handles a key while the shortcuts have the keyboard. It reports false for keys that belong to the
+// list (typing, +, Backspace…): the picker then goes back to the list and handles them as usual.
+func (p *folderPicker) updatePlaces(km tea.KeyMsg) bool {
+	n := len(p.places)
+	if n == 0 {
+		p.focusList()
+		return false
+	}
+	switch km.String() {
+	case "left", "shift+tab":
+		p.placeFocus = (p.placeFocus - 1 + n) % n
+	case "right", "tab":
+		p.placeFocus = (p.placeFocus + 1) % n
+	case "home":
+		p.placeFocus = 0
+	case "end":
+		p.placeFocus = n - 1
+	case "enter":
+		p.open(p.places[p.placeFocus].Path)
+		p.focusList()
+	case "down", "esc":
+		p.focusList()
+	case "up":
+		// already at the top
+	default:
+		p.focusList()
+		return false
+	}
+	return true
 }
 
 func (p *folderPicker) startCreate() tea.Cmd {
@@ -372,6 +438,7 @@ func (p *folderPicker) Mouse(msg tea.MouseMsg) tea.Cmd {
 	for _, pl := range p.placeSpans {
 		if msg.Y == p.placeY && msg.X >= p.contentLeft+pl.x0 && msg.X < p.contentLeft+pl.x1 {
 			p.open(pl.path)
+			p.focusList()
 			return nil
 		}
 	}
@@ -386,6 +453,7 @@ func (p *folderPicker) Mouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	if row, ok := p.g.Click(msg.X-p.gridX, msg.Y-p.gridY); ok {
+		p.focusList()
 		if row == p.g.Cursor() {
 			p.err = nil
 			p.activate() // a second click on the highlighted row opens it
@@ -473,7 +541,11 @@ func (p *folderPicker) View(w, h int) string {
 		}
 		add("", ui.MutedText.Render(label+"  ")+p.filter+ui.Title.Render("▏"))
 	default:
-		add("", ui.MutedText.Render("Type to filter · + new folder · ctrl+t hidden"))
+		if p.zone == zonePlaces {
+			add("", ui.MutedText.Render("← → choose a shortcut · enter go there · ↓ back to the list"))
+		} else {
+			add("", ui.MutedText.Render("↑ shortcuts · type to filter · + new folder · ctrl+t hidden"))
+		}
 	}
 
 	askText := ""
@@ -511,6 +583,9 @@ func (p *folderPicker) View(w, h int) string {
 func (p *folderPicker) buttons() []action {
 	if p.creating {
 		return []action{{"enter", "Create"}, {"esc", "Cancel"}}
+	}
+	if p.zone == zonePlaces {
+		return []action{{"enter", "Go there"}, {"down", "Back to list"}}
 	}
 	open := "Open"
 	if p.current().kind == rowSave {
@@ -560,33 +635,103 @@ func (p *folderPicker) renderCrumbs(width int) (string, []crumbSpan) {
 	return b.String(), spans
 }
 
-// renderPlaces draws the shortcuts on ONE line, as many as fit (Tab reaches the rest), and records where each one is.
+// chip draws one shortcut: filled with the accent while it has the keyboard, bold accent text when it is the folder
+// you are in, plain otherwise.
+func (p *folderPicker) chip(i int) string {
+	pl := p.places[i]
+	switch {
+	case p.zone == zonePlaces && i == p.placeFocus:
+		return ui.PillBoldOn(pl.Label, ui.Accent, ui.OnAccent, ui.CardBG)
+	case filepath.Clean(pl.Path) == p.dir:
+		return ui.PillBoldOn(pl.Label, ui.ChipBG, ui.Accent, ui.CardBG)
+	}
+	return ui.PillOn(pl.Label, ui.ChipBG, ui.Text, ui.CardBG)
+}
+
+// renderPlaces draws the shortcuts on ONE line. When they do not all fit, the row scrolls to keep the highlighted one in
+// view, with ‹ and › showing that there are more. It records where each one is for the mouse.
 func (p *folderPicker) renderPlaces(width int) (string, []placeSpan) {
+	n := len(p.places)
+	if n == 0 {
+		return "", nil
+	}
+	chips := make([]string, n)
+	ws := make([]int, n)
+	total := n - 1
+	for i := range chips {
+		chips[i] = p.chip(i)
+		ws[i] = lipgloss.Width(chips[i])
+		total += ws[i]
+	}
+	avail := width
+	if total > width {
+		avail = width - 4 // room for the two markers
+	}
+	// the chip to keep in view: the highlighted one, else the folder you are in
+	focus := -1
+	if p.zone == zonePlaces {
+		focus = p.placeFocus
+	} else {
+		for i, pl := range p.places {
+			if filepath.Clean(pl.Path) == p.dir {
+				focus = i
+				break
+			}
+		}
+	}
+	if total <= width {
+		p.placeStart = 0
+	} else {
+		p.placeStart = clampInt(p.placeStart, 0, n-1)
+		if focus >= 0 {
+			if focus < p.placeStart {
+				p.placeStart = focus
+			}
+			span := func(a, b int) int { // width of chips a..b with the gaps between
+				w := b - a
+				for i := a; i <= b; i++ {
+					w += ws[i]
+				}
+				return w
+			}
+			for p.placeStart < focus && span(p.placeStart, focus) > avail {
+				p.placeStart++
+			}
+		}
+	}
+
+	limit := width
+	if total > width {
+		limit = width - 2 // keep two cells for the trailing " ›"
+	}
+	pad := lipgloss.NewStyle().Background(ui.CardBG)
 	var b strings.Builder
 	var spans []placeSpan
 	x := 0
-	for _, pl := range p.places {
-		var txt string
-		if filepath.Clean(pl.Path) == p.dir {
-			txt = ui.PillBoldOn(pl.Label, ui.Accent, ui.OnAccent, ui.CardBG)
-		} else {
-			txt = ui.PillOn(pl.Label, ui.ChipBG, ui.Text, ui.CardBG)
-		}
-		w := lipgloss.Width(txt)
+	if p.placeStart > 0 {
+		b.WriteString(ui.MutedText.Render("‹ "))
+		x = 2
+	}
+	end := p.placeStart
+	for i := p.placeStart; i < n; i++ {
 		gap := 0
-		if x > 0 {
+		if i > p.placeStart {
 			gap = 1
 		}
-		if x+gap+w > width {
+		if x+gap+ws[i] > limit {
 			break
 		}
 		if gap > 0 {
-			b.WriteString(lipgloss.NewStyle().Background(ui.CardBG).Render(" "))
+			b.WriteString(pad.Render(" "))
 			x++
 		}
-		spans = append(spans, placeSpan{x0: x, x1: x + w, path: pl.Path})
-		b.WriteString(txt)
-		x += w
+		spans = append(spans, placeSpan{x0: x, x1: x + ws[i], path: p.places[i].Path})
+		b.WriteString(chips[i])
+		x += ws[i]
+		end = i + 1
+	}
+	if end < n {
+		b.WriteString(ui.MutedText.Render(" ›"))
 	}
 	return b.String(), spans
 }

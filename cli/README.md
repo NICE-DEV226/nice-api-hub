@@ -1,6 +1,6 @@
 # nah
 
-The command line and terminal interface for [NICE-API'HUB](../../README.md).
+The command line and terminal interface for [NICE-API'HUB](../README.md).
 
 One static binary (Go, no runtime needed), two ways to use it:
 
@@ -15,20 +15,27 @@ Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea), Bubbles, Li
 
 ## Install
 
-Needs Go 1.26 or newer. There are no prebuilt releases yet.
+**From a release** (recommended): download the archive for your system from the
+[Releases page](https://github.com/NICE-DEV226/nice-api-hub/releases), unpack it and put `nah` on your `PATH`.
+
+| System | Archive |
+|---|---|
+| Linux | `nah_<version>_linux_amd64.tar.gz`, `nah_<version>_linux_arm64.tar.gz` |
+| macOS | `nah_<version>_darwin_amd64.tar.gz` (Intel), `nah_<version>_darwin_arm64.tar.gz` (Apple Silicon) |
+| Windows | `nah_<version>_windows_amd64.zip`, `nah_<version>_windows_arm64.zip` |
+
+Check the download with `SHA256SUMS` (`sha256sum -c --ignore-missing SHA256SUMS`), and, if you use the GitHub CLI, that it was built by this
+repository's workflow: `gh attestation verify <archive> --repo NICE-DEV226/nice-api-hub`. No release has been published yet.
+
+**From source** (needs Go 1.26 or newer):
 
 ```bash
 cd cli
 make build            # ./bin/nah
 make install          # into $GOBIN (~/go/bin): make sure that folder is on your PATH
-make dist             # release binaries into ./dist (+ SHA256SUMS), see the table below
+make dist             # the same archives as a release, into ./dist (+ SHA256SUMS)
 ```
 
-| `make dist` produces | |
-|---|---|
-| Linux | amd64, arm64 |
-| macOS | amd64 (Intel), arm64 (Apple Silicon) |
-| Windows | amd64 |
 
 Shell completion: `nah completion bash|zsh|fish|powershell`.
 
@@ -43,7 +50,7 @@ The gateway address defaults to `http://localhost:3000`. Point at another one wi
 
 A computer without an account lands on a welcome screen:
 
-<p align="center"><img src="../../docs/nah-welcome.png" alt="The welcome screen" width="720"></p>
+<p align="center"><img src="../docs/nah-welcome.png" alt="The welcome screen" width="720"></p>
 
 | Choice | What happens |
 |---|---|
@@ -65,7 +72,7 @@ Open it with `nah` (or `nah tui`). Tabs depend on what this computer can do: **D
 admin token; **Download** with an API key. It opens on Download: a big input in the middle of the screen (like a search page)
 where you paste a link. Content stays in a readable centred column, even on a very wide terminal.
 
-<p align="center"><img src="../../docs/nah-home.png" alt="The home screen: paste a link" width="760"></p>
+<p align="center"><img src="../docs/nah-home.png" alt="The home screen: paste a link" width="760"></p>
 
 **With the mouse:** click a tab in the top right; click a row to select it; click the highlighted row again to download it;
 click the buttons under a list; use the wheel to scroll. Hold `Shift` to select text with the mouse (the terminal gives the
@@ -100,7 +107,7 @@ shows a message instead of a broken layout.
 
 ### The overview
 
-<p align="center"><img src="../../docs/nah-overview.png" alt="The overview: preview image, title, and the choices" width="760"></p>
+<p align="center"><img src="../docs/nah-overview.png" alt="The overview: preview image, title, and the choices" width="760"></p>
 
 Once a link is resolved, you see what you are about to download before choosing anything: a **preview image**, the title, who
 made it, its length and the platform, then a short menu in plain words: *Best quality*, each available height (`1080p`, `720p`…
@@ -113,7 +120,7 @@ platform has no preview, or it cannot be loaded, the screen simply omits it.
 
 ### Choosing where files go
 
-<p align="center"><img src="../../docs/nah-picker.png" alt="The folder picker" width="640"></p>
+<p align="center"><img src="../docs/nah-picker.png" alt="The folder picker" width="640"></p>
 
 **Starting a download asks where to save it.** Pick a quality, press `d` (or `m` for MP3, or click a row twice): the folder picker
 opens right then, on the folder you used last. `Enter` accepts it, so the fast path is *pick, Enter, Enter*. Your choice becomes
@@ -260,7 +267,7 @@ printf '%s\n' "$KEY" | nah login --api-key-stdin         # non-interactive login
 - The recovery key is only written to disk if you ask (`s` / `--save-recovery`), as a `0600` file. API keys are never printed except once, at creation.
 - The gateway address is the only thing sent besides your key and the links you ask for. The download history is a local file and
   is never sent anywhere.
-- Report a vulnerability privately (see [CONTRIBUTING.md](../../CONTRIBUTING.md#reporting-a-security-problem)), not in a public issue.
+- Report a vulnerability privately (see [CONTRIBUTING.md](../CONTRIBUTING.md#reporting-a-security-problem)), not in a public issue.
 
 ## Development
 

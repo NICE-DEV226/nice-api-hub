@@ -7,8 +7,13 @@ x-gateway: &gateway
     context: .
     dockerfile: Dockerfile
   restart: unless-stopped
+  # Every setting in .env reaches the containers (see .env.example for the full list); the entries below override it where
+  # the value must be different inside Docker (the database and Redis live on the internal network, the app always listens on 3000).
+  env_file: [.env]
   environment: &gateway-env
     NODE_ENV: production
+    HOST: 0.0.0.0
+    PORT: "3000"
     DATABASE_URL: postgres://nah:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/nah
     REDIS_URL: redis://redis:6379
     KEY_PEPPER: ${KEY_PEPPER:?set KEY_PEPPER (>= 32 chars)}

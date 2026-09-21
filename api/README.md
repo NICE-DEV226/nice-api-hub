@@ -51,6 +51,26 @@ Interactive API docs: `/docs`. Machine-readable spec: `/openapi.json`.
 Without Docker: `scripts/dev-services.sh start` launches throwaway Postgres + Redis on high
 ports (prints the env to export), then `npm run cli -- migrate` and `npm run dev`.
 
+## Configuration
+
+Every setting is an environment variable, validated at startup (the process refuses to start on a missing or too-short secret; there
+are no built-in fallback secrets). **`.env.example` is the reference**: each variable is listed there with its default and a comment.
+With Docker, put your values in `.env` and every one of them reaches the containers; `compose.yaml` only overrides what must differ
+inside Docker (the database and Redis addresses, the internal port).
+
+The ones you will most often touch:
+
+| Variable | Purpose |
+|---|---|
+| `KEY_PEPPER`, `ADMIN_TOKEN` | Secrets (32+ characters each). The pepper hashes every API key: rotating it invalidates all keys |
+| `SIGNUP_MODE`, `SIGNUP_PLAN` | Who may create an account (`closed` / `open` / `invite`) and on which plan |
+| `PROBES_ENABLED`, `PROBE_URLS` | Synthetic checks that fill the platform status shown by `/v1/platforms` and the `nah` dashboard |
+| `YTDLP_PROXY`, `YTDLP_COOKIES_FILE` | Needed for YouTube from a datacenter address |
+| `DOWNLOAD_MAX_CONCURRENCY`, `DOWNLOAD_MAX_BYTES`, `DOWNLOAD_MAX_SECONDS` | Limits on `/v1/download` |
+| `JOBS_*` | Asynchronous jobs: concurrency, retention, per-account backlog, webhook retry schedule |
+| `RATE_LIMIT_FAIL_MODE` | What to do when Redis is down (`open` keeps serving, `closed` refuses) |
+| `TRUST_PROXY`, `METRICS_TOKEN` | Behind a reverse proxy; protect `/metrics` |
+
 ## Accounts without e-mail
 
 A person is identified by their **computer**, not by an address. No e-mail, no password, nothing to remember.
@@ -245,8 +265,7 @@ Design decisions worth knowing:
 
 ## Operations
 
-- **Configuration** is validated at boot; the process refuses to start on a missing or too-short secret
-  (there are no built-in fallback secrets).
+- **Configuration** is described in [Configuration](#configuration).
 - **Scaling**: replicas are stateless. Per-process state is limited to circuit breakers and bulkheads
   (each replica learns upstream health on its own) and a small usage buffer.
 - **Shutdown**: on `SIGTERM` it stops accepting, drains in-flight requests, flushes buffered usage, then exits.

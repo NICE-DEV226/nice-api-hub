@@ -132,6 +132,10 @@ jobs:
           {
             echo "## nah $VERSION"
             echo
+            case "$VERSION" in *-*) echo "> **Pre-release.** Please try it and report what you find before the final version." ; echo ;; esac
+            # hand-written highlights for this version (a suffix such as -rc.1 uses the notes of the version it leads to)
+            notes=".github/release-notes/cli-${VERSION%%-*}.md"
+            if [ -f "$notes" ]; then cat "$notes"; echo; fi
             echo "### Install"
             echo
             echo "Download the archive for your system below, check it against \`SHA256SUMS\`, unpack it, and put \`nah\` somewhere on your PATH."

@@ -16,37 +16,38 @@ without a long back and forth. By taking part you agree to follow the [Code of C
 
 | Path | What | Stack |
 |---|---|---|
-| `apps/gateway` | The API and the worker | TypeScript (ESM), Fastify 5, PostgreSQL, Redis, TypeBox |
-| `apps/cli` | `nah`, the terminal app and commands | Go 1.26, Cobra, Bubble Tea |
+| `api` | The API and the worker | TypeScript (ESM), Fastify 5, PostgreSQL, Redis, TypeBox |
+| `cli` | `nah`, the terminal app and commands | Go 1.26, Cobra, Bubble Tea |
 | `.github/workflows` | CI and the daily provider probe | GitHub Actions |
 
-Architecture and design decisions are in the [README](README.md); the CLI's layout is in [apps/cli/README.md](apps/cli/README.md#development).
+Architecture and design decisions are in the [README](README.md); the CLI's layout is in [cli/README.md](cli/README.md#development).
 
 ## Setting up
 
-### Gateway
+### API (`api/`)
 
 Needs Node 22+, ffmpeg, and PostgreSQL + Redis. Docker is not required for development:
 
 ```bash
+cd api
 npm ci
-apps/gateway/scripts/dev-services.sh start        # throwaway Postgres + Redis on ports 55432 / 56379
-eval "$(apps/gateway/scripts/dev-services.sh env)"  # exports the connection variables
+scripts/dev-services.sh start              # throwaway Postgres + Redis on ports 55432 / 56379
+eval "$(scripts/dev-services.sh env)"      # exports the connection variables
 npm run typecheck
-npm test                                          # integration tests need the services, otherwise they skip
+npm test                                   # integration tests need the services, otherwise they skip
 ```
 
 `npm test` runs against **real PostgreSQL and Redis**, not mocks, because the interesting behaviour (atomic rate limiting,
 cache invalidation, quota sharing across keys) lives there. Do not replace those tests with mocks.
 
-Run the whole stack with Docker instead: `cp apps/gateway/.env.example .env`, fill the secrets, `docker compose up -d --build`.
+Run the whole stack with Docker instead, from `api/`: `cp .env.example .env`, fill the secrets, `docker compose up -d --build`.
 
-### CLI
+### CLI (`cli/`)
 
 Needs Go 1.26+.
 
 ```bash
-cd apps/cli
+cd cli
 make test          # or: make race   (CI runs the race detector)
 make vet
 make build && ./bin/nah
@@ -80,7 +81,7 @@ Tests must never touch your real keychain, clipboard, config or network. Use the
 - **No secrets in code, fixtures or logs.** Fixtures captured from real services must have cookies and tokens removed.
 - **Security-sensitive changes** (keys, scopes, rate limits, registration, SSRF guards) need a test that proves the guard, and
   a sentence in the PR on what an attacker could try.
-- **Look of the interface:** flat colours, one accent (`apps/cli/internal/ui/style.go`), colour only for status. No gradients,
+- **Look of the interface:** flat colours, one accent (`cli/internal/ui/style.go`), colour only for status. No gradients,
   no decoration for its own sake.
 - **Cross-platform:** the CLI ships for Linux, macOS and Windows. Anything that touches files, paths, the clipboard, the
   keychain or a machine identifier goes through `internal/{paths,device,vault,clip,opener,dl}`, with a test that fakes the

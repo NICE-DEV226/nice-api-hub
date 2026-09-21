@@ -1,0 +1,93 @@
+# Local / single-host deployment, from this folder:  cp .env.example .env && docker compose up -d --build
+# Postgres and Redis are on the internal network only: nothing but the API is published.
+name: nice-api-hub
+
+x-gateway: &gateway
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  environment: &gateway-env
+    NODE_ENV: production
+    DATABASE_URL: postgres://nah:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/nah
+    REDIS_URL: redis://redis:6379
+    KEY_PEPPER: ${KEY_PEPPER:?set KEY_PEPPER (>= 32 chars)}
+    ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN (>= 32 chars)}
+    METRICS_TOKEN: ${METRICS_TOKEN:-}
+    TRUST_PROXY: ${TRUST_PROXY:-false}
+    LOG_LEVEL: ${LOG_LEVEL:-info}
+    PROBE_URLS: ${PROBE_URLS:-}
+    YTDLP_PROXY: ${YTDLP_PROXY:-}
+    DOWNLOAD_MAX_CONCURRENCY: ${DOWNLOAD_MAX_CONCURRENCY:-4}
+    # closed (default) | open | invite. Behind Docker's bridge all local clients share one IP for the per-IP limit.
+    SIGNUP_MODE: ${SIGNUP_MODE:-closed}
+    SIGNUP_PLAN: ${SIGNUP_PLAN:-free}
+    SIGNUP_INVITE_CODES: ${SIGNUP_INVITE_CODES:-}
+    SIGNUP_PER_IP_PER_HOUR: ${SIGNUP_PER_IP_PER_HOUR:-5}
+    REGISTER_POW_BITS: ${REGISTER_POW_BITS:-20}
+    REGISTER_ONE_PER_DEVICE: ${REGISTER_ONE_PER_DEVICE:-true}
+  # ffmpeg / yt-dlp children must be reaped and signalled properly.
+  init: true
+  networks: [internal]
+
+services:
+  api:
+    <<: *gateway
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    ports:
+      - "${PORT:-3000}:3000"
+    stop_grace_period: 30s
+
+  # Probes run in their own container; a Redis lock ensures a single active prober.
+  worker:
+    <<: *gateway
+    command: ["node", "dist/worker.js"]
+    depends_on:
+      redis: { condition: service_healthy }
+    healthcheck:
+      disable: true
+
+  migrate:
+    <<: *gateway
+    restart: "no"
+    command: ["node", "dist/cli.js", "migrate"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      disable: true
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nah
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: nah
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nah -d nah"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [internal]
+
+  # Cache + rate-limit state. Every key has a TTL, so volatile-lru is safe; no persistence needed.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "volatile-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [internal]
+
+networks:
+  internal: {}
+
+volumes:
+  pgdata: {}

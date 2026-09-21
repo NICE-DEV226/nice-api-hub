@@ -8,8 +8,8 @@ interchangeable providers with automatic failover, and a small app on top for pe
 
 | | What | For whom |
 |---|---|---|
-| [`apps/cli`](apps/cli) | **`nah`**, the app: a terminal interface you click or type in, plus scriptable commands | People who download things |
-| [`apps/gateway`](apps/gateway) | The **API**: Fastify, PostgreSQL, Redis, yt-dlp, ffmpeg | Whoever runs the service, and developers integrating it |
+| [`cli`](cli) | **`nah`**, the app: a terminal interface you click or type in, plus scriptable commands | People who download things |
+| [`api`](api) | The **API**: Fastify, PostgreSQL, Redis, yt-dlp, ffmpeg | Whoever runs the service, and developers integrating it |
 
 **Contents:** [Use `nah`](#use-nah) · [Run your own gateway](#run-your-own-gateway) · [Accounts without e-mail](#accounts-without-e-mail) ·
 [The API](#the-api) · [Downloads](#downloads-get-v1download) · [Async jobs](#asynchronous-jobs-post-v1jobs) ·
@@ -28,7 +28,7 @@ produces one static binary.
 
 ```bash
 git clone https://github.com/NICE-DEV226/nice-api-hub.git
-cd nice-api-hub/apps/cli
+cd nice-api-hub/cli
 make install          # puts `nah` in ~/go/bin (add it to your PATH), or: make build → ./bin/nah
 ```
 
@@ -74,7 +74,7 @@ nah link                      # a code to add another computer to your account
 nah keys list                 # your computers and keys; revoke or rotate any of them
 ```
 
-Full reference, scripting notes, per-platform details and security model: **[apps/cli/README.md](apps/cli/README.md)**.
+Full reference, scripting notes, per-platform details and security model: **[cli/README.md](cli/README.md)**.
 
 ## Run your own gateway
 
@@ -82,7 +82,8 @@ Prerequisites: Docker with the **buildx** plugin (on Arch: `sudo pacman -S docke
 to build), and your user in the `docker` group.
 
 ```bash
-cp apps/gateway/.env.example .env      # fill KEY_PEPPER, ADMIN_TOKEN, POSTGRES_PASSWORD (openssl rand -base64 48)
+cd api
+cp .env.example .env               # fill KEY_PEPPER, ADMIN_TOKEN, POSTGRES_PASSWORD (openssl rand -base64 48)
 docker compose up -d --build           # postgres, redis, migrate (one-shot), api, worker
 curl localhost:3000/readyz             # {"status":"ready", ...}
 ```
@@ -111,8 +112,8 @@ curl -s -X POST localhost:3000/admin/v1/accounts/<id>/keys \
 
 Interactive API docs: `/docs`. Machine-readable spec: `/openapi.json`.
 
-Without Docker: `apps/gateway/scripts/dev-services.sh start` launches throwaway Postgres + Redis on high
-ports (prints the env to export), then `npm run cli -w @nice-api-hub/gateway -- migrate` and `npm run dev`.
+Without Docker: `api/scripts/dev-services.sh start` launches throwaway Postgres + Redis on high
+ports (prints the env to export), then, from `api/`, `npm run cli -- migrate` and `npm run dev`.
 
 ## Accounts without e-mail
 
@@ -390,7 +391,7 @@ Things this README does **not** promise, so you are not surprised:
 
 ## Adding a platform or provider
 
-1. Platform (host allowlist + canonicalisation): `apps/gateway/src/providers/platforms.ts`.
+1. Platform (host allowlist + canonicalisation): `api/src/providers/platforms.ts`.
 2. Provider: implement `Provider` (`fetch(ctx) → MediaDraft`, throw `ProviderError` with the right `kind`)
    in `providers/impl/`, register it in `buildDefaultProviders` (`http/app.ts`).
    Several providers per platform give you failover for free; `priority` decides the order.
@@ -400,7 +401,7 @@ Things this README does **not** promise, so you are not surprised:
 ## Development
 
 ```bash
-npm ci
+cd api && npm ci
 npm run typecheck && npm test          # integration tests need TEST_DATABASE_URL / TEST_REDIS_URL, else they skip
 ```
 
@@ -408,7 +409,7 @@ Tests run against real Postgres and Redis (no mocks for the data plane): atomic 
 concurrency, cache invalidation on revoke/plan change, quota sharing across keys, failover,
 fail-open/closed behaviour with Redis down.
 
-The Go program has its own tests (`cd apps/cli && make test`, or `make race`); they use a fake gateway and, for the
+The Go program has its own tests (`cd cli && make test`, or `make race`); they use a fake gateway and, for the
 interface, `teatest`. CI runs the gateway tests against real Postgres and Redis, the CLI tests with the race detector, and a
 Docker build (`.github/workflows/ci.yml`). A daily workflow (`probe.yml`) checks that every provider still works.
 

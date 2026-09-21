@@ -35,13 +35,13 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: apps/cli
+        working-directory: cli
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: apps/cli/go.mod
-          cache-dependency-path: apps/cli/go.sum
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
       - run: go vet ./...
       - run: go test -race -count=1 ./...
       - run: make dist
@@ -49,5 +49,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -f apps/gateway/Dockerfile -t nice-api-hub:ci .
+      - run: docker build -f api/Dockerfile -t nice-api-hub:ci .
       - run: docker run --rm --entrypoint sh nice-api-hub:ci -c 'yt-dlp --version && ffmpeg -version | head -1 && node -v'

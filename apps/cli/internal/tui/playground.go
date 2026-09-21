@@ -79,6 +79,8 @@ type playground struct {
 	// dir is where downloads are saved; picker is the folder chooser while it is open
 	dir    string
 	picker *folderPicker
+	// escAt is when Esc was last pressed on the empty home screen: a second press within a few seconds quits
+	escAt time.Time
 	// ask: starting a download first asks where to save it. pending is the download waiting for that answer.
 	ask     bool
 	pending *pendingDL
@@ -155,7 +157,7 @@ func (m *playground) Help() []key.Binding {
 	}
 	switch m.state {
 	case pgInput:
-		return []key.Binding{b("enter", "resolve"), b("tab", "save folder"), b("ctrl+u", "clear")}
+		return []key.Binding{b("enter", "resolve"), b("tab", "save folder"), b("esc esc", "quit")}
 	case pgResolving:
 		return []key.Binding{b("esc", "cancel")}
 	case pgDownloading:
@@ -371,6 +373,18 @@ func (m *playground) onKey(msg tea.KeyMsg) tea.Cmd {
 	case pgInput:
 		if k == "tab" {
 			return m.openPicker()
+		}
+		if k == "esc" {
+			switch {
+			case m.in.Value() != "": // first, clear what was typed
+				m.in.SetValue("")
+			case !m.escAt.IsZero() && now.Sub(m.escAt) < 3*time.Second:
+				return func() tea.Msg { return quitMsg{} }
+			default:
+				m.escAt = now
+				m.toast.set(now, "Press Esc again to quit (or ctrl+c)", false)
+			}
+			return nil
 		}
 		if k == "enter" {
 			url := strings.TrimSpace(m.in.Value())

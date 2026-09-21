@@ -29,6 +29,9 @@ type tabInfo struct {
 
 type refreshTick struct{}
 
+// quitMsg asks the app to close (from a view: the welcome menu, a double Esc on the home screen).
+type quitMsg struct{}
+
 // App is the full-screen interface.
 type App struct {
 	d        Deps
@@ -44,6 +47,7 @@ type App struct {
 
 	// hit-testing for the mouse, refreshed by every render
 	tabSpans [][2]int
+	quitSpan [2]int // the clickable "Quit" at the right of the header
 	tabRow   int
 	bodyTop  int
 }
@@ -164,6 +168,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMsg:
 		return a, a.onMouse(msg)
 
+	case quitMsg:
+		return a, a.quit()
+
 	case setupDoneMsg:
 		d, err := a.d.Session.Reload()
 		if err != nil {
@@ -226,6 +233,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a *App) onMouse(msg tea.MouseMsg) tea.Cmd {
 	if isLeftClick(msg) && msg.Y < a.bodyTop {
+		if msg.Y == a.tabRow && msg.X >= a.quitSpan[0] && msg.X < a.quitSpan[1] {
+			return a.quit()
+		}
 		if msg.Y == a.tabRow {
 			for i, sp := range a.tabSpans {
 				if msg.X >= sp[0] && msg.X < sp[1] {
@@ -256,27 +266,28 @@ func (a *App) header() string {
 
 	labels := make([]string, len(a.tabs))
 	widths := 0
-	for i, t := range a.tabs {
-		labels[i] = " " + string(rune('1'+i)) + " " + t.title + " "
-		widths += lipgloss.Width(labels[i])
+	if !a.setupMode {
+		for i, t := range a.tabs {
+			labels[i] = " " + string(rune('1'+i)) + " " + t.title + " "
+			widths += lipgloss.Width(labels[i])
+		}
 	}
-	oneLine := a.w-lipgloss.Width(left)-widths >= 1
-	if a.setupMode {
-		oneLine = true
-	}
+	const quitLabel = "  × Quit "
+	quitW := lipgloss.Width(quitLabel)
+	total := widths + quitW
+	oneLine := a.setupMode || a.w-lipgloss.Width(left)-total >= 1
 
-	// x where the tab strip starts
+	// x where the right-hand strip (tabs, then Quit) starts
 	x := 0
 	if oneLine {
-		x = a.w - widths
+		x = a.w - total
 	}
 	a.tabSpans = a.tabSpans[:0]
-	if a.setupMode {
-		a.tabSpans, a.tabRow, a.bodyTop = a.tabSpans[:0], 0, 2
-		return left
-	}
 	var tabs []string
 	for i, l := range labels {
+		if a.setupMode {
+			break
+		}
 		w := lipgloss.Width(l)
 		a.tabSpans = append(a.tabSpans, [2]int{x, x + w})
 		x += w
@@ -286,13 +297,14 @@ func (a *App) header() string {
 			tabs = append(tabs, ui.MutedText.Render(l))
 		}
 	}
-	right := strings.Join(tabs, "")
+	a.quitSpan = [2]int{x + 2, x + quitW - 1} // the two blank cells before "×" are not part of the button
+	right := strings.Join(tabs, "") + ui.MutedText.Render(quitLabel)
 	if !oneLine {
 		a.tabRow, a.bodyTop = 1, 3
 		return left + "\n" + right
 	}
 	a.tabRow, a.bodyTop = 0, 2
-	return left + strings.Repeat(" ", a.w-lipgloss.Width(left)-widths) + right
+	return left + strings.Repeat(" ", a.w-lipgloss.Width(left)-total) + right
 }
 
 type helpKeys struct{ short, full []key.Binding }
@@ -313,7 +325,8 @@ func (a *App) footer() string {
 	v := a.current()
 	keys := append(append([]key.Binding{}, v.Help()...), global...)
 	if v.Capturing() {
-		keys = v.Help() // while typing, only show what applies
+		// while typing, only what applies, plus the one way out that always works
+		keys = append(append([]key.Binding{}, v.Help()...), key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "quit")))
 	}
 	a.help.Width = a.w
 	if a.showHelp {

@@ -74,7 +74,9 @@ mouse to the app otherwise).
 | Key | Action |
 |---|---|
 | `1` `2` `3` · `[` `]` | Switch tabs |
-| `?` · `q` · `ctrl+c` | Full help · quit · quit (also cancels a download) |
+| `?` · `q` · `ctrl+c` | Full help · quit (not while typing) · quit from anywhere (also cancels a download) |
+| `Esc` `Esc` (home screen) | Quit: the first `Esc` clears the box, then says "Press Esc again to quit" |
+| Click **× Quit** (top right) | Quit. The welcome screen has a Quit entry too |
 | **Download screen** `Enter` | Resolve the link you pasted |
 | `↑` `↓` · `d` · `m` · `c` · `Esc` | Select a quality · download · MP3 · copy link · new link |
 | `o` on a result | Open the original page in the browser |

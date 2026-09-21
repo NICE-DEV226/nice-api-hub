@@ -40,3 +40,11 @@ func TestNeverOpensProgramsDownloadedFromTheInternet(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenURLOnlyAcceptsWebLinks(t *testing.T) {
+	for _, u := range []string{"file:///etc/passwd", "javascript:alert(1)", "ms-msdt:/id", "smb://host/share", "", "/tmp/x"} {
+		if OpenURL(u) == nil {
+			t.Errorf("%q must be refused", u)
+		}
+	}
+}

@@ -56,3 +56,5 @@ func indent(s, pad string) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+func lipglossWidth(s string) int { return lipgloss.Width(s) }

@@ -169,7 +169,7 @@ func RunDownload(ctx context.Context, w io.Writer, o DownloadOptions) (DownloadR
 	events := make(chan dlEvent, 32)
 
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(ui.Title))
-	bar := progress.New(progress.WithDefaultGradient(), progress.WithWidth(40), progress.WithoutPercentage())
+	bar := newBar(40)
 	m := dlModel{events: events, spin: sp, bar: bar, cancel: cancel, started: time.Now(), phase: "prepare"}
 	p := tea.NewProgram(m, tea.WithOutput(w))
 

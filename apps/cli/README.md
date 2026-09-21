@@ -62,9 +62,10 @@ No terminal UI? `nah register`, `nah link`, `nah recover` and `nah login` do the
 ## The interface
 
 Open it with `nah` (or `nah tui`). Tabs depend on what this computer can do: **Dashboard** always; **Accounts** with the
-admin token; **Playground** (the download screen) with an API key.
+admin token; **Download** with an API key. It opens on Download: a big input in the middle of the screen (like a search page)
+where you paste a link. Content stays in a readable centred column, even on a very wide terminal.
 
-<p align="center"><img src="../../docs/download.png" alt="The download screen: pick a quality, click again to download" width="700"></p>
+<p align="center"><img src="../../docs/nah-home.png" alt="The home screen: paste a link" width="760"></p>
 
 **With the mouse:** click a tab in the top right; click a row to select it; click the highlighted row again to download it;
 click the buttons under a list; use the wheel to scroll. Hold `Shift` to select text with the mouse (the terminal gives the
@@ -76,14 +77,67 @@ mouse to the app otherwise).
 | `?` · `q` · `ctrl+c` | Full help · quit · quit (also cancels a download) |
 | **Download screen** `Enter` | Resolve the link you pasted |
 | `↑` `↓` · `d` · `m` · `c` · `Esc` | Select a quality · download · MP3 · copy link · new link |
+| `o` on a result | Open the original page in the browser |
+| `Tab` (or `f` on a result) | Choose the folder to save into (also asked automatically when a download starts) |
 | **Dashboard** `r` | Refresh (it also refreshes every 15 s) |
 | **Accounts** `↑` `↓` `Tab` | Move · switch between accounts and keys |
 | `n` · `c` · `x` · `s` · `r` | New account · new key · revoke key · suspend/activate · refresh |
 | **Operator without a personal account** `s` | Set this computer up as a user too |
 
+**Round corners.** A terminal cell is a rectangle, so a truly round corner needs a special glyph. With a Nerd Font, press
+**`Ctrl+R`**: the input bar, buttons and chips become real pills with half-circle ends (press it again to go back; the choice is
+remembered). Without such a font, the input is a flat filled field, which looks right in every font.
+
+**Text too small, or not to your taste?** The font and its size belong to your terminal, not to `nah`: zoom with `Ctrl` `+`
+(`Cmd` `+` on macOS), or pick a font in the terminal's settings. Good choices: JetBrains Mono, Cascadia Code, Fira Code, or their
+Nerd Font variants.
+
 A new key is displayed once, with a copy shortcut. Revocations and suspensions ask for `y` first. While you type in a text
 box, single-letter shortcuts are off, so a link containing a `q` never quits the app. A terminal smaller than 60×14
 shows a message instead of a broken layout.
+
+### The overview
+
+<p align="center"><img src="../../docs/nah-overview.png" alt="The overview: preview image, title, and the choices" width="760"></p>
+
+Once a link is resolved, you see what you are about to download before choosing anything: a **preview image**, the title, who
+made it, its length and the platform, then a short menu in plain words: *Best quality*, each available height (`1080p`, `720p`…
+with its approximate size), *Audio only* and *MP3*. `o` opens the original page in your browser.
+
+With room (about 100 columns), the image sits beside the title and the menu; on a narrower terminal it goes above them. The image
+is drawn with coloured half blocks, so it works in every terminal that has colour, over SSH and inside tmux, with no graphics
+protocol. It is coarse by nature (a few dozen pixels wide); the gateway fetches it, so the CDN never sees your address. If a
+platform has no preview, or it cannot be loaded, the screen simply omits it.
+
+### Choosing where files go
+
+<p align="center"><img src="../../docs/nah-picker.png" alt="The folder picker" width="640"></p>
+
+**Starting a download asks where to save it.** Pick a quality, press `d` (or `m` for MP3, or click a row twice): the folder picker
+opens right then, on the folder you used last. `Enter` accepts it, so the fast path is *pick, Enter, Enter*. Your choice becomes
+the new default and is remembered, along with your most recent folders.
+
+Don't want the question every time? Untick **Ask where to save every time** (click it, or `Ctrl+A`): downloads then go straight to
+your default folder. The picker is still one keystroke away: `Tab` on the home screen (`f` once you have a result), or click the
+`Save to` line under the input.
+
+One rule does most of the work: **the first row is always "Save in this folder"**. So `Enter` on a folder opens it, then
+`Enter` again saves there. Everything else is a shortcut:
+
+| To | Do |
+|---|---|
+| Move | `↑` `↓` `PgUp` `PgDn` `Home` `End`, or the wheel |
+| Go into the highlighted folder / go up | `→` (or `Enter`) / `←` or `Backspace` |
+| Filter the folders here | Just type. The cursor jumps to the first match, `Enter` opens it |
+| Jump to a path | Type or paste one (`/srv/media`, `~/Videos`, `C:\Users\me`): `Tab` completes it, `Enter` goes there |
+| Jump to a usual place | Click a chip (Downloads, Documents, Videos/Movies, Music, external drives, Windows drives, `/`, your recent folders ★), or `Tab` / `Shift+Tab` to cycle |
+| Jump to a parent | Click any part of the path at the top (`~ › Videos › 2026`) |
+| Create a folder | `+`, type a name, `Enter`: you land inside it |
+| Show hidden folders | `Ctrl+T` (typing a `.` also reveals them) |
+| Cancel | `Esc` (the first press clears the filter) |
+
+A folder you cannot write to is refused with the reason, instead of failing later during a download. Folder names you create are
+made safe for every operating system, like downloaded file names.
 
 Not in the interface yet: History, Devices and Settings tabs. Use `nah history`, `nah again` and `nah keys` meanwhile.
 
@@ -151,6 +205,7 @@ Settings resolve in this order: flag → environment → profile → default.
 | `NAH_CONFIG` | Path of the config file itself |
 | `NAH_CONFIG_DIR` · `NAH_DATA_DIR` · `NAH_DOWNLOAD_DIR` | Override the folders below |
 | `NAH_DEVICE_ID` | Pretend to be another computer (testing): replaces the machine identifier |
+| `NAH_NERD_FONT` | `1` = rounded pills, `0` = flat. Rounded needs a terminal font with Powerline symbols (a Nerd Font), otherwise the ends show as empty boxes, so it is off by default. **Press `Ctrl+R` in the interface to switch it live**; the choice is remembered (this variable overrides it) |
 | `NAH_NO_KEYRING` | Skip the system keychain and use the private file (servers, containers, CI) |
 
 | What | Linux | macOS | Windows |

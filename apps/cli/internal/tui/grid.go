@@ -25,6 +25,8 @@ type grid struct {
 	width   int
 	height  int // total lines, including the 2 header lines
 	focused bool
+	// noHeader drops the title row and its rule (a plain list, like the folder picker's)
+	noHeader bool
 }
 
 func newGrid(titles []string, fixed []int) *grid {
@@ -33,9 +35,16 @@ func newGrid(titles []string, fixed []int) *grid {
 
 const gridHeaderLines = 2
 
+func (g *grid) headerLines() int {
+	if g.noHeader {
+		return 0
+	}
+	return gridHeaderLines
+}
+
 // SetSize gives the grid its outer size; height counts the header.
 func (g *grid) SetSize(w, h int) {
-	g.width, g.height = maxInt(10, w), maxInt(gridHeaderLines+1, h)
+	g.width, g.height = maxInt(10, w), maxInt(g.headerLines()+1, h)
 	used := 0
 	for _, f := range g.fixed {
 		used += f
@@ -55,7 +64,7 @@ func (g *grid) SetSize(w, h int) {
 	g.clamp()
 }
 
-func (g *grid) visible() int { return maxInt(1, g.height-gridHeaderLines) }
+func (g *grid) visible() int { return maxInt(1, g.height-g.headerLines()) }
 
 func (g *grid) SetRows(rows [][]string) {
 	g.rows = rows
@@ -123,11 +132,11 @@ func (g *grid) Wheel(n int) {
 
 // Click returns the row under (x, y) given in the grid's own coordinates (0,0 = top-left of its header).
 func (g *grid) Click(x, y int) (int, bool) {
-	if x < 0 || x >= g.width || y < gridHeaderLines {
+	if x < 0 || x >= g.width || y < g.headerLines() {
 		return 0, false
 	}
-	row := g.offset + y - gridHeaderLines
-	if row < 0 || row >= len(g.rows) || y-gridHeaderLines >= g.visible() {
+	row := g.offset + y - g.headerLines()
+	if row < 0 || row >= len(g.rows) || y-g.headerLines() >= g.visible() {
 		return 0, false
 	}
 	return row, true
@@ -158,8 +167,10 @@ func (g *grid) View() string {
 		g.SetSize(g.width, g.height)
 	}
 	lines := make([]string, 0, g.height)
-	lines = append(lines, ui.MutedText.Bold(true).Render(g.line(g.titles)))
-	lines = append(lines, lipgloss.NewStyle().Foreground(ui.Subtle).Render(strings.Repeat("─", g.width)))
+	if !g.noHeader {
+		lines = append(lines, ui.MutedText.Bold(true).Render(g.line(g.titles)))
+		lines = append(lines, lipgloss.NewStyle().Foreground(ui.Subtle).Render(strings.Repeat("─", g.width)))
+	}
 
 	selected := lipgloss.NewStyle().Bold(true).Foreground(ui.OnAccent).Background(ui.Accent)
 	dim := lipgloss.NewStyle().Underline(true)
@@ -192,12 +203,9 @@ type action struct {
 type actionBar struct {
 	spans [][2]int // [start, end) columns of each button
 	items []action
+	// on: the surface the buttons sit on (a card's fill). Zero value = the plain terminal.
+	fill, under lipgloss.TerminalColor
 }
-
-var (
-	buttonStyle = lipgloss.NewStyle().Padding(0, 1).Foreground(ui.Text).Background(ui.Subtle)
-	buttonKey   = lipgloss.NewStyle().Bold(true).Foreground(ui.Accent)
-)
 
 // Render draws the buttons on one line and remembers where each one is.
 func (b *actionBar) Render(items []action) string {
@@ -210,7 +218,10 @@ func (b *actionBar) Render(items []action) string {
 			sb.WriteString(" ")
 			x++
 		}
-		txt := buttonStyle.Render(buttonKey.Background(ui.Subtle).Render(it.key) + " " + it.label)
+		txt := ui.KeyPill(it.key, it.label)
+		if b.fill != nil {
+			txt = ui.KeyPillOn(it.key, it.label, b.fill, b.under)
+		}
 		w := lipgloss.Width(txt)
 		b.spans = append(b.spans, [2]int{x, x + w})
 		sb.WriteString(txt)
@@ -242,6 +253,16 @@ func keyMsg(k string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyUp}
 	case "down":
 		return tea.KeyMsg{Type: tea.KeyDown}
+	case "left":
+		return tea.KeyMsg{Type: tea.KeyLeft}
+	case "right":
+		return tea.KeyMsg{Type: tea.KeyRight}
+	case "backspace":
+		return tea.KeyMsg{Type: tea.KeyBackspace}
+	case "ctrl+t":
+		return tea.KeyMsg{Type: tea.KeyCtrlT}
+	case "ctrl+a":
+		return tea.KeyMsg{Type: tea.KeyCtrlA}
 	}
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 }

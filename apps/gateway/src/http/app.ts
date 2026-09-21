@@ -35,6 +35,7 @@ import { JobRunner, toPublicJob } from '../jobs/runner.js';
 import { adminRoutes } from './adminRoutes.js';
 import { registerKeyRoutes, registerPublicRoutes } from './deviceRoutes.js';
 import { requireScope, type Scope } from '../gateway/scopes.js';
+import { loadThumbnail, rememberThumbnail } from './thumbnails.js';
 import { MediaSchema, ProblemSchema, VariantSchema } from './schemas.js';
 import './types.js';
 
@@ -101,6 +102,7 @@ const SCOPE_BY_ROUTE: Record<string, Scope> = {
 const CONTROL_ROUTES = new Set([
   '/v1/account',
   '/v1/usage',
+  '/v1/thumbnail',
   '/v1/jobs/:id',
   '/v1/keys',
   '/v1/keys/:id/revoke',
@@ -461,10 +463,36 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
 
         const { media, cached } = await mediaService.resolve(target);
         req.usage.cacheHit = cached;
+        void rememberThumbnail(redis, media.thumbnail); // lets /v1/thumbnail serve exactly this image
         return {
           data: media,
           meta: { requestId: req.id, cached, tookMs: Math.round(performance.now() - started) },
         };
+      },
+    );
+
+    scoped.get(
+      '/v1/thumbnail',
+      {
+        schema: {
+          tags: ['Media'],
+          summary: 'The preview image of a media you just resolved',
+          description:
+            'Pass the `thumbnail` value returned by `/v1/media`. The gateway fetches the image for you (your address is not shown to the ' +
+            'CDN), and only serves thumbnails of media resolved within the last hour. Returns the image itself, JPEG, PNG, WebP or GIF, at most 4 MiB.',
+          security: [{ apiKey: [] }],
+          querystring: Type.Object({ url: Type.String({ minLength: 1, maxLength: 2048 }) }),
+          response: { 404: Type.Ref(ProblemSchema), 429: Type.Ref(ProblemSchema), 502: Type.Ref(ProblemSchema) },
+        },
+      },
+      async (req, reply) => {
+        const thumb = await loadThumbnail(redis, req.query.url, { allowPrivateHosts: config.DOWNLOAD_ALLOW_PRIVATE_HOSTS });
+        return reply
+          .header('content-type', thumb.type)
+          .header('cache-control', 'private, max-age=900')
+          .header('x-content-type-options', 'nosniff')
+          .header('x-thumbnail-cache', thumb.cached ? 'hit' : 'miss')
+          .send(thumb.body);
       },
     );
 

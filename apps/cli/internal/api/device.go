@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/url"
 )
@@ -114,4 +116,32 @@ func (c *Client) RevokeMyKey(ctx context.Context, keyID string) (Key, error) {
 // RotateMyKey replaces one of the caller's own keys; the old one lives on for graceSeconds.
 func (c *Client) RotateMyKey(ctx context.Context, keyID string, graceSeconds int) (Key, error) {
 	return send[Key](ctx, c, http.MethodPost, "/v1/keys/"+url.PathEscape(keyID)+"/rotate", map[string]int{"graceSeconds": graceSeconds}, authAPIKey)
+}
+
+// maxThumbnail bounds what is read from the gateway: it never sends more than 4 MiB.
+const maxThumbnail = 5 << 20
+
+// Thumbnail asks the gateway for the preview image of a media it just resolved (`thumbnail` in a /v1/media answer).
+// The gateway fetches it, so the CDN never sees this computer. It returns the encoded image (JPEG, PNG, WebP or GIF).
+func (c *Client) Thumbnail(ctx context.Context, imageURL string) ([]byte, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, "/v1/thumbnail", url.Values{"url": {imageURL}}, nil, authAPIKey)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, c.unreachable(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode >= 400 {
+		return nil, parseProblem(res)
+	}
+	body, err := io.ReadAll(io.LimitReader(res.Body, maxThumbnail+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > maxThumbnail {
+		return nil, errors.New("thumbnail is larger than expected")
+	}
+	return body, nil
 }

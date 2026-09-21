@@ -30,7 +30,8 @@ jobs:
           fetch-depth: 0 # release notes read the history since the previous tag
       - uses: actions/setup-go@v5
         with:
-          go-version-file: cli/go.mod
+          go-version: stable
+          check-latest: true
           cache-dependency-path: cli/go.sum
 
       - name: Work out the version

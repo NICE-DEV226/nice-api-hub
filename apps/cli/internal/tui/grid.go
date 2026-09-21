@@ -173,7 +173,7 @@ func (g *grid) View() string {
 	}
 
 	selected := lipgloss.NewStyle().Bold(true).Foreground(ui.OnAccent).Background(ui.Accent)
-	dim := lipgloss.NewStyle().Underline(true)
+	dim := lipgloss.NewStyle().Bold(true).Background(ui.ChipBG) // the selection while another part has the keyboard: a soft fill
 	for i := 0; i < g.visible(); i++ {
 		idx := g.offset + i
 		if idx >= len(g.rows) {

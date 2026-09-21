@@ -174,6 +174,7 @@ func (m *setupView) buildMenu() {
 		menuItem{"apikey", "I already have an API key", "Paste a key given by the operator."},
 		menuItem{"admin", "I run this gateway (operator)", "Paste the admin token to manage accounts."},
 		menuItem{"url", "Change the gateway address", m.d.Session.URL()},
+		menuItem{"quit", "Quit", "Close nah. You can come back any time."},
 	)
 	if m.cursor >= len(m.items) {
 		m.cursor = 0
@@ -259,6 +260,8 @@ func (m *setupView) choose(k string) tea.Cmd {
 		return m.startInput(stAPIKey, "nah_live_…", true)
 	case "admin":
 		return m.startInput(stAdmin, "admin token", true)
+	case "quit":
+		return func() tea.Msg { return quitMsg{} }
 	case "url":
 		m.state, m.err = stURL, nil
 		m.url.SetValue(m.d.Session.URL())

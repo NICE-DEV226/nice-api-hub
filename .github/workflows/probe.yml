@@ -12,7 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      - run: npm ci --workspace=@nice-api-hub/gateway
+        with: { node-version: 22, cache: npm, cache-dependency-path: api/package-lock.json }
+      - run: npm ci
+        working-directory: api
       - run: pip install --user -U yt-dlp && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - run: npm run probe -w @nice-api-hub/gateway
+      - run: npm run probe
+        working-directory: api

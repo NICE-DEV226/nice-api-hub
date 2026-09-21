@@ -1,0 +1,87 @@
+name: CLI
+
+# Validates the terminal app on every operating system, for every push and pull request that touches it.
+on:
+  push:
+    branches: [main, "v2/**"]
+    paths: ["cli/**", ".github/workflows/cli.yml"]
+  pull_request:
+    paths: ["cli/**", ".github/workflows/cli.yml"]
+
+concurrency:
+  group: cli-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: cli
+    shell: bash
+
+jobs:
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # one failing system must not hide what happens on the others
+      matrix:
+        include:
+          - { name: linux-amd64,   os: ubuntu-latest,    race: true }
+          - { name: linux-arm64,   os: ubuntu-24.04-arm, race: true }
+          - { name: macos-arm64,   os: macos-latest,     race: true }
+          - { name: windows-amd64, os: windows-latest,   race: false } # the race detector needs a C compiler there
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+      - name: gofmt
+        if: matrix.name == 'linux-amd64'
+        run: test -z "$(gofmt -l .)" || { echo "needs gofmt:"; gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - name: Unit and interface tests
+        run: |
+          if [ "${{ matrix.race }}" = "true" ]; then go test -race -count=1 ./...; else go test -count=1 ./...; fi
+      - name: Build and run the binary
+        run: |
+          go build -trimpath -o nah-ci .
+          ./nah-ci version
+          ./nah-ci --help > /dev/null
+
+  # Every platform we ship for must at least compile, including the ones no runner can execute (macOS Intel, Windows on ARM).
+  cross-compile:
+    name: compile (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+      - name: Build the program and its tests for ${{ matrix.target }}
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          export GOOS="${{ matrix.target }}"; export GOOS="${GOOS%/*}"
+          export GOARCH="${{ matrix.target }}"; export GOARCH="${GOARCH#*/}"
+          go build -trimpath -o /dev/null .
+          go vet ./...
+          go test -c -o /dev/null ./cmd
+
+  vulnerabilities:
+    name: known vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

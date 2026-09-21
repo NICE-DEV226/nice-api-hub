@@ -1,11 +1,26 @@
-name: CI
+name: API
+
+# Validates the API on every push and pull request that touches it.
 on:
   push:
     branches: [main, "v2/**"]
+    paths: ["api/**", ".github/workflows/api.yml"]
   pull_request:
+    paths: ["api/**", ".github/workflows/api.yml"]
+
+concurrency:
+  group: api-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: api
 
 jobs:
-  gateway:
+  test:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -25,29 +40,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      - run: npm ci --workspace=@nice-api-hub/gateway
+        with: { node-version: 22, cache: npm, cache-dependency-path: api/package-lock.json }
+      - run: npm ci
       - run: ffmpeg -version | head -1   # preinstalled on the runner; the download tests use it
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-  cli:
+
+  dependencies:
+    name: dependency audit
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: cli
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: cli/go.mod
-          cache-dependency-path: cli/go.sum
-      - run: go vet ./...
-      - run: go test -race -count=1 ./...
-      - run: make dist
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: api/package-lock.json }
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+
   docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -f api/Dockerfile -t nice-api-hub:ci .
+      - run: docker build -t nice-api-hub:ci .
       - run: docker run --rm --entrypoint sh nice-api-hub:ci -c 'yt-dlp --version && ffmpeg -version | head -1 && node -v'

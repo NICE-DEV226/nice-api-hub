@@ -16,6 +16,7 @@ import (
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/api"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/config"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/ui"
+	"github.com/NICE-DEV226/nice-api-hub/cli/internal/update"
 )
 
 // Exit codes.
@@ -84,7 +85,7 @@ func NewRoot(env Env) *cobra.Command {
 	root.AddCommand(
 		a.loginCmd(), a.configCmd(), a.statusCmd(), a.mediaCmd(), a.downloadCmd(),
 		a.jobsCmd(), a.accountCmd(), a.usageCmd(), a.adminCmd(), a.tuiCmd(), a.versionCmd(),
-		a.initCmd(), a.registerCmd(), a.linkCmd(), a.recoverCmd(), a.keysCmd(), a.historyCmd(), a.againCmd(),
+		a.updateCmd(), a.initCmd(), a.registerCmd(), a.linkCmd(), a.recoverCmd(), a.keysCmd(), a.historyCmd(), a.againCmd(),
 	)
 	return root
 }
@@ -172,6 +173,11 @@ func (a *app) requireYes(yes bool, question string) error {
 func Execute(env Env) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if env.Executable != nil {
+		if exe, err := env.Executable(); err == nil {
+			update.CleanupOld(exe) // Windows: remove the previous program an update left beside this one
+		}
+	}
 	root := NewRoot(env)
 	jsonMode := false
 	for _, a := range os.Args[1:] {

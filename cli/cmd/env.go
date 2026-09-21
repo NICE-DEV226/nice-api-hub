@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -57,6 +58,8 @@ type Env struct {
 	HistoryPath string
 	// Solve overrides the proof-of-work solver (tests).
 	Solve onboard.Solver
+	// Executable returns the path of the running program, symlinks resolved (what `nah update` replaces).
+	Executable func() (string, error)
 }
 
 // DefaultEnv wires the real process environment.
@@ -69,6 +72,13 @@ func DefaultEnv(version, commit, date string) Env {
 		secrets = vault.Keyring{}
 	}
 	return Env{
+		Executable: func() (string, error) {
+			p, err := os.Executable()
+			if err != nil {
+				return "", err
+			}
+			return filepath.EvalSymlinks(p)
+		},
 		Secrets:     secrets,
 		Device:      device.System(dataDir),
 		Paths:       ps,

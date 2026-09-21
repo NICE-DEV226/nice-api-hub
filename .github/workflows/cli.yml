@@ -101,7 +101,7 @@ jobs:
           check-latest: true
           cache-dependency-path: cli/go.sum
       - run: make dist VERSION=0.0.1-ci
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ci-dist
           path: cli/dist/*

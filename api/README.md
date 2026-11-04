@@ -9,6 +9,9 @@ GET /v1/media?url=https://www.tiktok.com/@user/video/123
 Authorization: Bearer nah_live_…
 ```
 
+Playlist URLs can be enumerated with `GET /v1/playlist?url=...`. The response contains the entries without downloading them;
+clients download each entry separately through `/v1/download`, so failures, quotas and cancellation remain per item.
+
 **Contents:** [Run it](#run-your-own-gateway) · [Accounts without e-mail](#accounts-without-e-mail) · [The API](#the-api) ·
 [Downloads](#downloads-get-v1download) · [Async jobs](#asynchronous-jobs-post-v1jobs) · [Architecture](#architecture) ·
 [Operations](#operations) · [Status](#status) · [Extending](#adding-a-platform-or-provider) · [Development](#development)

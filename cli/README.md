@@ -181,6 +181,7 @@ Not in the interface yet: History, Devices and Settings tabs. Use `nah history`,
 | `nah` · `nah tui` | Open the interface |
 | `nah media <url>` | Resolve a link into variants. `--url-only [--kind audio]` prints just a link |
 | `nah download <url>` | One playable file (video and audio merged, or MP3). `-o`, `--max-height 720`, `--audio`, `--mp3`, `-f`, `-q` |
+| Paste a playlist URL in `nah` | Review its entries, then choose **Download all** to save them sequentially in the selected folder |
 | `nah history` · `nah again [#\|id]` | What this computer downloaded (`-n`, `--clear`) · download one again, without overwriting |
 | `nah jobs submit <url>` | Asynchronous extraction. `--wait`, `--webhook URL`, `--idempotency-key K`; then `jobs get\|wait <id>` |
 | `nah account` · `nah usage` | Plan, limits, webhook secret (`--show-secret`), today's quota and recent usage |

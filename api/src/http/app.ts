@@ -22,11 +22,11 @@ import { blueskyProvider } from '../providers/impl/bluesky.js';
 import { dailymotionProvider } from '../providers/impl/dailymotion.js';
 import { tikwmProvider } from '../providers/impl/tikwm.js';
 import { twmateProvider } from '../providers/impl/twmate.js';
-import { createYtDlpProvider, type YtDlpOptions } from '../providers/impl/ytdlp.js';
+import { createYtDlpProvider, listYtDlpPlaylist, type YtDlpOptions } from '../providers/impl/ytdlp.js';
 import { MediaService } from '../providers/mediaService.js';
 import { PLATFORMS, resolveTarget } from '../providers/platforms.js';
 import { ProviderRegistry } from '../providers/registry.js';
-import type { Provider } from '../providers/types.js';
+import { ProviderError, type Provider } from '../providers/types.js';
 import { planDownload } from '../download/plan.js';
 import { contentDisposition, openDownload, safeFilename, SlotLimiter } from '../download/stream.js';
 import { assertPublicHttpUrl } from '../download/urlGuard.js';
@@ -36,7 +36,7 @@ import { adminRoutes } from './adminRoutes.js';
 import { registerKeyRoutes, registerPublicRoutes } from './deviceRoutes.js';
 import { requireScope, type Scope } from '../gateway/scopes.js';
 import { loadThumbnail, rememberThumbnail } from './thumbnails.js';
-import { MediaSchema, ProblemSchema, VariantSchema } from './schemas.js';
+import { MediaSchema, PlaylistSchema, ProblemSchema, VariantSchema } from './schemas.js';
 import './types.js';
 
 /**
@@ -158,6 +158,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
   );
 
   const registry = new ProviderRegistry(deps.providers ?? buildDefaultProviders(deps.ytdlp ?? null), PLATFORMS);
+  const ytdlp = deps.ytdlp ?? null;
   const cache = new MediaCache(redis, config.CACHE_TTL_SECONDS, config.NEGATIVE_CACHE_TTL_SECONDS);
   const mediaService = new MediaService({
     registry,
@@ -255,6 +256,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
 
   app.addSchema(VariantSchema);
   app.addSchema(MediaSchema);
+  app.addSchema(PlaylistSchema);
   app.addSchema(ProblemSchema);
 
   await app.register(swagger, {
@@ -467,6 +469,51 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
         return {
           data: media,
           meta: { requestId: req.id, cached, tookMs: Math.round(performance.now() - started) },
+        };
+      },
+    );
+
+    scoped.get(
+      '/v1/playlist',
+      {
+        schema: {
+          tags: ['Media'],
+          summary: 'List the playable entries in a playlist',
+          description: 'Enumerates playlist entries through yt-dlp without downloading them. Each entry is downloaded separately through `/v1/download`.',
+          security: [{ apiKey: [] }],
+          querystring: Type.Object({ url: Type.String({ minLength: 1, maxLength: 2048 }) }),
+          response: {
+            200: Type.Object({ data: Type.Ref(PlaylistSchema) }),
+            403: Type.Ref(ProblemSchema),
+            422: Type.Ref(ProblemSchema),
+            429: Type.Ref(ProblemSchema),
+            502: Type.Ref(ProblemSchema),
+            503: Type.Ref(ProblemSchema),
+          },
+        },
+      },
+      async (req) => {
+        if (!ytdlp) throw errors.providersExhausted([{ provider: 'yt-dlp', outcome: 'disabled' }]);
+        const target = resolveTarget(req.query.url, registry.availablePlatforms());
+        const principal = req.principal!;
+        req.usage = { platform: target.platform.id, cacheHit: false };
+        if (principal.platforms && !principal.platforms.includes(target.platform.id)) {
+          throw errors.forbidden('platform_not_allowed', `Your plan/key does not include "${target.platform.id}".`);
+        }
+        let listed: Awaited<ReturnType<typeof listYtDlpPlaylist>>;
+        try {
+          listed = await listYtDlpPlaylist(ytdlp, req.query.url.trim(), AbortSignal.timeout(config.UPSTREAM_TIMEOUT_MS));
+        } catch (error) {
+          if (error instanceof ProviderError && error.kind === 'unavailable') throw errors.contentUnavailable();
+          throw errors.providersExhausted([{ provider: 'yt-dlp', outcome: error instanceof ProviderError ? error.kind : 'internal' }]);
+        }
+        return {
+          data: {
+            platform: target.platform.id,
+            sourceUrl: req.query.url.trim(),
+            title: listed.title,
+            entries: listed.entries,
+          },
         };
       },
     );

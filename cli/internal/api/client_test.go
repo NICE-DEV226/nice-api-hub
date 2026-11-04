@@ -174,6 +174,25 @@ func TestDownload(t *testing.T) {
 	}
 }
 
+func TestPlaylist(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/playlist" || r.URL.Query().Get("url") == "" {
+			t.Fatalf("unexpected request: %s", r.URL.String())
+		}
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"data":{"platform":"youtube","sourceUrl":"https://www.youtube.com/playlist?list=x","title":"Mix","entries":[{"id":"1","url":"https://youtu.be/a","title":"First","durationSeconds":12,"thumbnail":null}]}}`)
+	}))
+	defer s.Close()
+	c, err := New(s.URL, "key", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := c.Playlist(context.Background(), "https://www.youtube.com/playlist?list=x")
+	if err != nil || p.Title == nil || *p.Title != "Mix" || len(p.Entries) != 1 {
+		t.Fatalf("playlist = %#v, err=%v", p, err)
+	}
+}
+
 func TestFilenameFromDispositionIsSafe(t *testing.T) {
 	cases := map[string]string{
 		`attachment; filename="clip.mp4"`:             "clip.mp4",

@@ -49,6 +49,21 @@ type MediaResult struct {
 	Meta MediaMeta `json:"meta"`
 }
 
+type PlaylistEntry struct {
+	ID              string   `json:"id"`
+	URL             string   `json:"url"`
+	Title           *string  `json:"title"`
+	DurationSeconds *float64 `json:"durationSeconds"`
+	Thumbnail       *string  `json:"thumbnail"`
+}
+
+type Playlist struct {
+	Platform  string          `json:"platform"`
+	SourceURL string          `json:"sourceUrl"`
+	Title     *string         `json:"title"`
+	Entries   []PlaylistEntry `json:"entries"`
+}
+
 // PlatformStatus is the public availability of one platform.
 type PlatformStatus struct {
 	ID     string `json:"id"`

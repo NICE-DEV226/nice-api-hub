@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -24,8 +25,9 @@ import (
 )
 
 type resolvedMsg struct {
-	res *api.MediaResult
-	err error
+	res      *api.MediaResult
+	playlist *api.Playlist
+	err      error
 }
 
 // pendingDL is a download that has been chosen and is waiting for its folder.
@@ -57,6 +59,8 @@ const (
 	pgResolving
 	pgResult
 	pgDownloading
+	pgPlaylist
+	pgPlaylistDownloading
 )
 
 type playground struct {
@@ -86,9 +90,11 @@ type playground struct {
 	ask     bool
 	pending *pendingDL
 
-	res    *api.MediaResult
-	opts   []dlOption         // what can be downloaded, in plain words
-	cancel context.CancelFunc // cancels the resolve in flight
+	res            *api.MediaResult
+	playlist       *api.Playlist
+	playlistStatus []string
+	opts           []dlOption         // what can be downloaded, in plain words
+	cancel         context.CancelFunc // cancels the resolve in flight
 
 	// the thumbnail of the media being shown
 	thumb      image.Image
@@ -163,6 +169,10 @@ func (m *playground) Help() []key.Binding {
 		return []key.Binding{b("esc", "cancel")}
 	case pgDownloading:
 		return []key.Binding{b("esc", "cancel download")}
+	case pgPlaylistDownloading:
+		return []key.Binding{b("esc", "cancel playlist")}
+	case pgPlaylist:
+		return []key.Binding{b("a", "download all"), b("f", "folder"), b("esc", "new URL")}
 	}
 	return []key.Binding{b("↑/↓", "select"), b("d", "download"), b("m", "mp3"), b("o", "open page"), b("f", "folder"), b("c", "copy link"), b("esc", "new URL")}
 }
@@ -171,12 +181,25 @@ func (m *playground) resolve(url string) tea.Cmd {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	m.cancel = cancel
 	m.state, m.res = pgResolving, nil
+	m.playlist = nil
 	c := m.d.Client
 	return tea.Batch(m.sp.Tick, func() tea.Msg {
 		defer cancel()
+		if looksLikePlaylist(url) {
+			playlist, err := c.Playlist(ctx, url)
+			return resolvedMsg{playlist: playlist, err: err}
+		}
 		res, err := c.Media(ctx, url)
 		return resolvedMsg{res: res, err: err}
 	})
+}
+
+func looksLikePlaylist(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	return u.Query().Get("list") != "" || strings.Contains(strings.ToLower(u.Path), "/playlist")
 }
 
 // buildRows fills the quality list from the resolved media.
@@ -185,6 +208,19 @@ func (m *playground) buildRows() {
 	rows := make([][]string, len(m.opts))
 	for i, o := range m.opts {
 		rows[i] = []string{o.Label, o.Detail}
+	}
+	m.tbl.SetRows(rows)
+	m.tbl.SetCursor(0)
+}
+
+func (m *playground) buildPlaylistRows() {
+	rows := make([][]string, len(m.playlist.Entries))
+	for i, entry := range m.playlist.Entries {
+		detail := "pending"
+		if entry.DurationSeconds != nil {
+			detail = ui.Duration(*entry.DurationSeconds) + " · pending"
+		}
+		rows[i] = []string{fmt.Sprintf("%02d  %s", i+1, ui.Deref(entry.Title, "(untitled)")), detail}
 	}
 	m.tbl.SetRows(rows)
 	m.tbl.SetCursor(0)
@@ -224,6 +260,41 @@ func (m *playground) startDownload(req api.DownloadRequest, fallback string) tea
 	return func() tea.Msg { return dlStartMsg{ch: ch, cancel: cancel} }
 }
 
+func (m *playground) startPlaylistDownload() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	ch := make(chan dlEvent, 32)
+	m.state = pgPlaylistDownloading
+	m.playlistStatus = make([]string, len(m.playlist.Entries))
+	m.dl.name, m.dl.done, m.dl.total, m.dl.speed, m.dl.started = "", 0, -1, speedMeter{}, m.d.Now()
+	go func() {
+		defer close(ch)
+		for i, entry := range m.playlist.Entries {
+			fallback := fmt.Sprintf("playlist-%03d.mp4", i+1)
+			res, err := Transfer(ctx, DownloadOptions{
+				Client: m.d.Client, Request: api.DownloadRequest{URL: entry.URL, Kind: "video"},
+				Dest: m.dir, Fallback: fallback, Unique: true,
+			}, func(s *api.DownloadStream) {
+				name := s.Filename
+				if name == "" {
+					name = fallback
+				}
+				ch <- dlEvent{kind: "start", index: i, name: name, total: s.ContentLength}
+			}, func(done, total int64) {
+				select {
+				case ch <- dlEvent{kind: "progress", index: i, done: done, total: total}:
+				default:
+				}
+			})
+			ch <- dlEvent{kind: "done", index: i, res: res, err: err}
+			if err != nil && errors.Is(err, context.Canceled) {
+				return
+			}
+		}
+		ch <- dlEvent{kind: "playlist-done"}
+	}()
+	return func() tea.Msg { return dlStartMsg{ch: ch, cancel: cancel} }
+}
+
 func (m *playground) Update(msg tea.Msg) tea.Cmd {
 	now := m.d.Now()
 	switch msg := msg.(type) {
@@ -243,6 +314,13 @@ func (m *playground) Update(msg tea.Msg) tea.Cmd {
 			m.toast.set(now, text, true)
 			return textinput.Blink
 		}
+		if msg.playlist != nil {
+			m.playlist, m.playlistStatus, m.state = msg.playlist, make([]string, len(msg.playlist.Entries)), pgPlaylist
+			m.in.Blur()
+			m.buildPlaylistRows()
+			m.toast = flash{}
+			return nil
+		}
 		m.res, m.state = msg.res, pgResult
 		m.in.Blur()
 		m.buildRows()
@@ -261,18 +339,36 @@ func (m *playground) Update(msg tea.Msg) tea.Cmd {
 		m.dl.ch, m.dl.cancel = msg.ch, msg.cancel
 		return tea.Batch(m.sp.Tick, waitEvent(msg.ch))
 	case dlEvent:
-		if m.state != pgDownloading {
+		if m.state != pgDownloading && m.state != pgPlaylistDownloading {
 			return nil
 		}
 		switch msg.kind {
 		case "start":
 			m.dl.name, m.dl.total = msg.name, msg.total
+			if m.state == pgPlaylistDownloading && msg.index < len(m.playlistStatus) {
+				m.playlistStatus[msg.index] = "downloading"
+			}
 			return waitEvent(m.dl.ch)
 		case "progress":
 			m.dl.done, m.dl.total = msg.done, msg.total
 			m.dl.speed.add(now, msg.done)
 			return waitEvent(m.dl.ch)
 		case "done":
+			if m.state == pgPlaylistDownloading {
+				if errors.Is(msg.err, context.Canceled) {
+					m.state = pgPlaylist
+					m.dl.cancel, m.dl.ch = nil, nil
+					m.toast.set(now, "Playlist download cancelled.", true)
+					return nil
+				}
+				if msg.index < len(m.playlistStatus) {
+					m.playlistStatus[msg.index] = "done"
+					if msg.err != nil {
+						m.playlistStatus[msg.index] = "failed"
+					}
+				}
+				return waitEvent(m.dl.ch)
+			}
 			m.state = pgResult
 			m.dl.cancel, m.dl.ch = nil, nil
 			switch {
@@ -287,6 +383,10 @@ func (m *playground) Update(msg tea.Msg) tea.Cmd {
 				m.toast.set(now, fmt.Sprintf("Saved %s (%s in %s) in %s", filepath.Base(msg.res.Path), ui.Bytes(msg.res.Bytes),
 					msg.res.Elapsed.Round(100*time.Millisecond), fsnav.Short(filepath.Dir(msg.res.Path), home, 40)), false)
 			}
+		case "playlist-done":
+			m.state = pgPlaylist
+			m.dl.cancel, m.dl.ch = nil, nil
+			m.toast.set(now, "Playlist download finished.", false)
 		}
 	case spinner.TickMsg:
 		if m.state == pgResolving || m.state == pgDownloading {
@@ -412,6 +512,24 @@ func (m *playground) onKey(msg tea.KeyMsg) tea.Cmd {
 		if k == "esc" && m.dl.cancel != nil {
 			m.dl.cancel()
 		}
+	case pgPlaylistDownloading:
+		if k == "esc" && m.dl.cancel != nil {
+			m.dl.cancel()
+		}
+	case pgPlaylist:
+		switch k {
+		case "a", "enter":
+			return m.startPlaylistDownload()
+		case "f", "tab":
+			return m.openPicker()
+		case "esc", "/":
+			m.playlist = nil
+			m.state = pgInput
+			m.in.Focus()
+			return textinput.Blink
+		default:
+			m.tbl.Key(k)
+		}
 	case pgResult:
 		switch k {
 		case "f", "tab":
@@ -493,12 +611,66 @@ func (m *playground) View() string {
 	switch m.state {
 	case pgResult:
 		out = m.resultScreen()
+	case pgPlaylist:
+		out = m.playlistScreen()
+	case pgPlaylistDownloading:
+		out = m.centered(m.playlistDownloadScreen())
 	case pgDownloading:
 		out = m.centered(m.downloadLines())
 	default:
 		out = m.homeScreen()
 	}
 	return out
+}
+
+func (m *playground) playlistScreen() string {
+	width := maxInt(30, m.w-2)
+	title := ui.Deref(m.playlist.Title, "Playlist")
+	m.tbl.SetSize(width, minInt(len(m.playlist.Entries)+gridHeaderLines, maxInt(gridHeaderLines+3, m.h-14)))
+	m.gridX = 1
+	var b strings.Builder
+	b.WriteString(indent(m.inputBox(width, false), " "))
+	b.WriteString("\n\n ")
+	b.WriteString(ui.Bold.Render(ui.Truncate(title, width)))
+	b.WriteString("\n ")
+	b.WriteString(ui.MutedText.Render(fmt.Sprintf("%d videos", len(m.playlist.Entries))))
+	b.WriteString("\n\n ")
+	b.WriteString(m.tbl.View())
+	m.gridY = strings.Count(b.String(), "\n") - len(m.playlist.Entries) + 1
+	b.WriteString("\n\n ")
+	m.actsY = strings.Count(b.String(), "\n")
+	b.WriteString(m.acts.Render([]action{{"a", "Download all"}, {"f", "Folder"}, {"esc", "New URL"}}))
+	b.WriteString("\n\n ")
+	b.WriteString(m.folderLine(m.w, "f"))
+	m.chipY = strings.Count(b.String(), "\n")
+	m.chipX0, m.chipX1 = 1, 1+lipgloss.Width(m.folderLine(m.w, "f"))
+	return b.String()
+}
+
+func (m *playground) playlistDownloadScreen() []string {
+	lines := []string{ui.Bold.Render(ui.Deref(m.playlist.Title, "Playlist")), ""}
+	for i, entry := range m.playlist.Entries {
+		status := m.playlistStatus[i]
+		if status == "" {
+			status = "pending"
+		}
+		lines = append(lines, fmt.Sprintf("%s %02d  %s", playlistStatusMark(status), i+1, ui.Truncate(ui.Deref(entry.Title, "(untitled)"), maxInt(20, m.w-20))))
+	}
+	lines = append(lines, "", ui.MutedText.Render("esc to cancel"))
+	return lines
+}
+
+func playlistStatusMark(status string) string {
+	switch status {
+	case "done":
+		return ui.OK.Render("✓")
+	case "failed":
+		return ui.Danger.Render("✗")
+	case "downloading":
+		return ui.Title.Render("↓")
+	default:
+		return ui.MutedText.Render("·")
+	}
 }
 
 // centered places a block of lines in the middle of the view, a little above the exact centre like a search page.
@@ -622,6 +794,25 @@ func (m *playground) Mouse(msg tea.MouseMsg) tea.Cmd {
 			if row == m.tbl.Cursor() {
 				return m.onKey(keyMsg("d")) // a second click on the highlighted row downloads it
 			}
+			m.tbl.SetCursor(row)
+		}
+	case pgPlaylist:
+		if d := wheelDelta(msg); d != 0 {
+			m.tbl.Wheel(d)
+			return nil
+		}
+		if !isLeftClick(msg) {
+			return nil
+		}
+		if msg.Y == m.chipY && msg.X >= m.chipX0 && msg.X < m.chipX1 {
+			return m.openPicker()
+		}
+		if msg.Y == m.actsY {
+			if k, ok := m.acts.Hit(msg.X - 1); ok {
+				return m.onKey(keyMsg(k))
+			}
+		}
+		if row, ok := m.tbl.Click(msg.X-m.gridX, msg.Y-m.gridY); ok {
 			m.tbl.SetCursor(row)
 		}
 	}

@@ -107,13 +107,14 @@ type playground struct {
 	toast      flash
 
 	dl struct {
-		name    string
-		done    int64
-		total   int64
-		ch      <-chan dlEvent
-		cancel  context.CancelFunc
-		speed   speedMeter
-		started time.Time
+		name     string
+		done     int64
+		total    int64
+		ch       <-chan dlEvent
+		cancel   context.CancelFunc
+		finished chan struct{}
+		speed    speedMeter
+		started  time.Time
 	}
 }
 
@@ -149,6 +150,9 @@ func (m *playground) Close() {
 	}
 	if m.dl.cancel != nil {
 		m.dl.cancel()
+		if m.dl.finished != nil {
+			<-m.dl.finished
+		}
 	}
 }
 
@@ -239,8 +243,11 @@ func (m *playground) startDownload(req api.DownloadRequest, fallback string) tea
 	ch := make(chan dlEvent, 32)
 	opts := DownloadOptions{Client: m.d.Client, Request: req, Dest: m.dir, Fallback: fallback, Unique: true}
 	m.dl.name, m.dl.done, m.dl.total, m.dl.speed, m.dl.started = "", 0, -1, speedMeter{}, m.d.Now()
+	finished := make(chan struct{})
+	m.dl.finished = finished
 	m.state = pgDownloading
 	go func() {
+		defer close(finished)
 		res, err := Transfer(ctx, opts,
 			func(s *api.DownloadStream) {
 				name := s.Filename
@@ -266,7 +273,10 @@ func (m *playground) startPlaylistDownload() tea.Cmd {
 	m.state = pgPlaylistDownloading
 	m.playlistStatus = make([]string, len(m.playlist.Entries))
 	m.dl.name, m.dl.done, m.dl.total, m.dl.speed, m.dl.started = "", 0, -1, speedMeter{}, m.d.Now()
+	finished := make(chan struct{})
+	m.dl.finished = finished
 	go func() {
+		defer close(finished)
 		defer close(ch)
 		for i, entry := range m.playlist.Entries {
 			fallback := fmt.Sprintf("playlist-%03d.mp4", i+1)

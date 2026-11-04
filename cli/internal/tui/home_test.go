@@ -59,7 +59,7 @@ func TestTheInputIsCenteredLikeASearchPage(t *testing.T) {
 		t.Fatalf("input row %d of %d", pg.inputY, pg.h)
 	}
 	out := pg.View()
-	for _, want := range []string{"██", "Paste a media URL", "Save to", "Change"} {
+	for _, want := range []string{"██", "Paste a media or playlist URL", "Save to", "Change"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q", want)
 		}
@@ -72,7 +72,7 @@ func TestSmallTerminalsDropTheLogoButKeepTheInput(t *testing.T) {
 	if strings.Contains(out, "██") {
 		t.Fatal("no logo when the terminal is short")
 	}
-	if !strings.Contains(out, "Paste a media URL") || !strings.Contains(out, "Save to") {
+	if !strings.Contains(out, "Paste a media or playlist URL") || !strings.Contains(out, "Save to") {
 		t.Fatalf("the essentials must stay:\n%s", out)
 	}
 	for _, l := range strings.Split(out, "\n") {

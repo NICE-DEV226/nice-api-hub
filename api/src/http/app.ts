@@ -479,7 +479,7 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
         schema: {
           tags: ['Media'],
           summary: 'List the playable entries in a playlist',
-          description: 'Enumerates playlist entries without downloading them. Each entry is downloaded separately through `/v1/download`.',
+          description: 'Enumerates playlist entries through yt-dlp without downloading them. Each entry is downloaded separately through `/v1/download`.',
           security: [{ apiKey: [] }],
           querystring: Type.Object({ url: Type.String({ minLength: 1, maxLength: 2048 }) }),
           response: {

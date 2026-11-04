@@ -119,7 +119,7 @@ type playground struct {
 
 func newPlayground(d Deps) *playground {
 	in := textinput.New()
-	in.Placeholder = "Paste a media URL here"
+	in.Placeholder = "Paste a media or playlist URL here"
 	in.CharLimit = 2048
 	in.Prompt = "▸ "
 	in.Focus()

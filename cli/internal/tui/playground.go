@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/api"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/dl"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/fsnav"
+	"github.com/NICE-DEV226/nice-api-hub/cli/internal/playlist"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/ui"
 )
 
@@ -92,6 +94,8 @@ type playground struct {
 
 	res            *api.MediaResult
 	playlist       *api.Playlist
+	playlistCP     *playlist.Checkpoint
+	playlistStore  *playlist.Store
 	playlistStatus []string
 	opts           []dlOption         // what can be downloaded, in plain words
 	cancel         context.CancelFunc // cancels the resolve in flight
@@ -221,13 +225,68 @@ func (m *playground) buildPlaylistRows() {
 	rows := make([][]string, len(m.playlist.Entries))
 	for i, entry := range m.playlist.Entries {
 		detail := "pending"
+		if i < len(m.playlistStatus) {
+			switch m.playlistStatus[i] {
+			case "done":
+				detail = "downloaded"
+			case "failed":
+				detail = "failed · retry"
+			}
+		}
 		if entry.DurationSeconds != nil {
-			detail = ui.Duration(*entry.DurationSeconds) + " · pending"
+			detail = ui.Duration(*entry.DurationSeconds) + " · " + detail
 		}
 		rows[i] = []string{fmt.Sprintf("%02d  %s", i+1, ui.Deref(entry.Title, "(untitled)")), detail}
 	}
 	m.tbl.SetRows(rows)
 	m.tbl.SetCursor(0)
+}
+
+func (m *playground) loadPlaylistCheckpoint() {
+	m.playlistCP, m.playlistStore = nil, nil
+	if m.d.DataDir == "" {
+		return
+	}
+	entries := make([]struct{ ID, URL string }, len(m.playlist.Entries))
+	for i, entry := range m.playlist.Entries {
+		entries[i] = struct{ ID, URL string }{ID: entry.ID, URL: entry.URL}
+	}
+	key := playlist.Key(m.playlist.SourceURL, entries)
+	store := &playlist.Store{Path: filepath.Join(m.d.DataDir, "playlist-checkpoints.json")}
+	cp, err := store.Load(key)
+	if err != nil || cp == nil || len(cp.Items) != len(m.playlist.Entries) {
+		return
+	}
+	for i := range cp.Items {
+		if cp.Items[i].Status == "done" && cp.Items[i].Path != "" {
+			if _, statErr := os.Stat(cp.Items[i].Path); statErr != nil {
+				cp.Items[i].Status, cp.Items[i].Path = "pending", ""
+			}
+		}
+		if cp.Items[i].Status == "downloading" {
+			cp.Items[i].Status = "pending"
+		}
+		m.playlistStatus[i] = cp.Items[i].Status
+	}
+	m.playlistCP, m.playlistStore = cp, store
+	m.toast.set(m.d.Now(), "Previous progress found; completed files will be skipped.", false)
+}
+
+func (m *playground) ensurePlaylistCheckpoint() {
+	if m.playlistCP != nil {
+		return
+	}
+	entries := make([]struct{ ID, URL string }, len(m.playlist.Entries))
+	items := make([]playlist.Item, len(m.playlist.Entries))
+	for i, entry := range m.playlist.Entries {
+		entries[i] = struct{ ID, URL string }{ID: entry.ID, URL: entry.URL}
+		items[i] = playlist.Item{ID: entry.ID, URL: entry.URL, Title: ui.Deref(entry.Title, "(untitled)"), Status: "pending"}
+	}
+	m.playlistCP = &playlist.Checkpoint{Key: playlist.Key(m.playlist.SourceURL, entries), SourceURL: m.playlist.SourceURL, Title: ui.Deref(m.playlist.Title, "Playlist"), Items: items}
+	if m.d.DataDir != "" {
+		m.playlistStore = &playlist.Store{Path: filepath.Join(m.d.DataDir, "playlist-checkpoints.json")}
+		_ = m.playlistStore.Save(*m.playlistCP)
+	}
 }
 
 func (m *playground) selectedOption() *dlOption {
@@ -270,6 +329,10 @@ func (m *playground) startDownload(req api.DownloadRequest, fallback string) tea
 func (m *playground) startPlaylistDownload() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan dlEvent, 32)
+	m.ensurePlaylistCheckpoint()
+	checkpoint := *m.playlistCP
+	checkpoint.Items = append([]playlist.Item(nil), m.playlistCP.Items...)
+	store := m.playlistStore
 	m.state = pgPlaylistDownloading
 	m.playlistStatus = make([]string, len(m.playlist.Entries))
 	m.dl.name, m.dl.done, m.dl.total, m.dl.speed, m.dl.started = "", 0, -1, speedMeter{}, m.d.Now()
@@ -278,6 +341,17 @@ func (m *playground) startPlaylistDownload() tea.Cmd {
 	go func() {
 		defer close(ch)
 		for i, entry := range m.playlist.Entries {
+			if checkpoint.Items[i].Status == "done" && checkpoint.Items[i].Path != "" {
+				if _, err := os.Stat(checkpoint.Items[i].Path); err == nil {
+					continue
+				}
+				checkpoint.Items[i].Status, checkpoint.Items[i].Path = "pending", ""
+			}
+			checkpoint.Items[i].Status = "downloading"
+			checkpoint.Items[i].Attempts++
+			if store != nil {
+				_ = store.Save(checkpoint)
+			}
 			fallback := fmt.Sprintf("playlist-%03d.mp4", i+1)
 			res, err := Transfer(ctx, DownloadOptions{
 				Client: m.d.Client, Request: api.DownloadRequest{URL: entry.URL, Kind: "video"},
@@ -295,6 +369,19 @@ func (m *playground) startPlaylistDownload() tea.Cmd {
 				}
 			})
 			ch <- dlEvent{kind: "done", index: i, res: res, err: err}
+			if err == nil {
+				checkpoint.Items[i].Status = "done"
+				checkpoint.Items[i].Path = res.Path
+				checkpoint.Items[i].LastError = ""
+			} else if errors.Is(err, context.Canceled) {
+				checkpoint.Items[i].Status = "pending"
+			} else {
+				checkpoint.Items[i].Status = "failed"
+				checkpoint.Items[i].LastError = err.Error()
+			}
+			if store != nil {
+				_ = store.Save(checkpoint)
+			}
 			if err != nil && errors.Is(err, context.Canceled) {
 				close(finished)
 				return
@@ -327,6 +414,7 @@ func (m *playground) Update(msg tea.Msg) tea.Cmd {
 		}
 		if msg.playlist != nil {
 			m.playlist, m.playlistStatus, m.state = msg.playlist, make([]string, len(msg.playlist.Entries)), pgPlaylist
+			m.loadPlaylistCheckpoint()
 			m.in.Blur()
 			m.buildPlaylistRows()
 			m.toast = flash{}
@@ -397,6 +485,7 @@ func (m *playground) Update(msg tea.Msg) tea.Cmd {
 		case "playlist-done":
 			m.state = pgPlaylist
 			m.dl.cancel, m.dl.ch = nil, nil
+			m.buildPlaylistRows()
 			m.toast.set(now, "Playlist download finished.", false)
 		}
 	case spinner.TickMsg:
@@ -650,7 +739,11 @@ func (m *playground) playlistScreen() string {
 	m.gridY = strings.Count(b.String(), "\n") - len(m.playlist.Entries) + 1
 	b.WriteString("\n\n ")
 	m.actsY = strings.Count(b.String(), "\n")
-	b.WriteString(m.acts.Render([]action{{"a", "Download all"}, {"f", "Folder"}, {"esc", "New URL"}}))
+	label := "Download all"
+	if m.playlistCP != nil {
+		label = "Resume remaining"
+	}
+	b.WriteString(m.acts.Render([]action{{"a", label}, {"f", "Folder"}, {"esc", "New URL"}}))
 	b.WriteString("\n\n ")
 	b.WriteString(m.folderLine(m.w, "f"))
 	m.chipY = strings.Count(b.String(), "\n")

@@ -111,6 +111,10 @@ func (a *app) tuiDeps(dir string) (tui.Deps, error) {
 	if dir == "" {
 		dir = a.downloadDir()
 	}
+	dataDir, err := a.env.Paths.DataDir()
+	if err != nil {
+		return tui.Deps{}, err
+	}
 	return tui.Deps{
 		Client:      c,
 		Thumb:       thumbFetcher(c),
@@ -119,6 +123,7 @@ func (a *app) tuiDeps(dir string) (tui.Deps, error) {
 		HasAdmin:    a.res.AdminToken != "",
 		Now:         a.env.Now,
 		DownloadDir: dir,
+		DataDir:     dataDir,
 		Refresh:     15 * time.Second,
 		Session:     session{a: a, dir: dir},
 		FS:          fsnav.System(),

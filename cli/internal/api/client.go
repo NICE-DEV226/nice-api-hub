@@ -260,6 +260,15 @@ func (c *Client) Media(ctx context.Context, mediaURL string) (*MediaResult, erro
 	return &r, nil
 }
 
+// Playlist lists the entries in a playlist without downloading them.
+func (c *Client) Playlist(ctx context.Context, playlistURL string) (*Playlist, error) {
+	var r envelope[Playlist]
+	if err := c.call(ctx, http.MethodGet, "/v1/playlist", url.Values{"url": {playlistURL}}, nil, authAPIKey, &r); err != nil {
+		return nil, err
+	}
+	return &r.Data, nil
+}
+
 // Account returns the caller's account.
 func (c *Client) Account(ctx context.Context) (AccountInfo, error) {
 	return get[AccountInfo](ctx, c, "/v1/account", nil, authAPIKey)

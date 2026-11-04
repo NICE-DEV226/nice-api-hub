@@ -37,6 +37,24 @@ export const MediaSchema = Type.Object(
   { $id: 'Media' },
 );
 
+export const PlaylistSchema = Type.Object(
+  {
+    platform: Type.String(),
+    sourceUrl: Type.String(),
+    title: Type.Union([Type.String(), Type.Null()]),
+    entries: Type.Array(
+      Type.Object({
+        id: Type.String(),
+        url: Type.String(),
+        title: Type.Union([Type.String(), Type.Null()]),
+        durationSeconds: Type.Union([Type.Number(), Type.Null()]),
+        thumbnail: Type.Union([Type.String(), Type.Null()]),
+      }),
+    ),
+  },
+  { $id: 'Playlist' },
+);
+
 export const ProblemSchema = Type.Object(
   {
     type: Type.String(),

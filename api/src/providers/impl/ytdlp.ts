@@ -38,6 +38,8 @@ interface Format {
 
 export interface YtDlpInfo extends Format {
   _type?: string;
+  id?: string;
+  webpage_url?: string;
   entries?: YtDlpInfo[];
   title?: string | null;
   uploader?: string | null;
@@ -47,6 +49,14 @@ export interface YtDlpInfo extends Format {
   is_live?: boolean | null;
   live_status?: string | null;
   formats?: Format[];
+}
+
+export interface YtDlpPlaylistEntry {
+  id: string;
+  url: string;
+  title: string | null;
+  durationSeconds: number | null;
+  thumbnail: string | null;
 }
 
 const AUDIO_EXT = new Set(['mp3', 'm4a', 'aac', 'opus', 'ogg', 'oga', 'wav', 'flac', 'weba']);
@@ -187,11 +197,29 @@ export function ytDlpArgs(opts: YtDlpOptions, url: string): string[] {
   return args;
 }
 
-export function runYtDlp(opts: YtDlpOptions, url: string, signal: AbortSignal): Promise<YtDlpInfo> {
+export function ytDlpPlaylistArgs(opts: YtDlpOptions, url: string): string[] {
+  const args = [
+    '-J',
+    '--flat-playlist',
+    '--skip-download',
+    '--no-warnings',
+    '--ignore-config',
+    '--socket-timeout',
+    '15',
+    '--js-runtimes',
+    opts.jsRuntime,
+  ];
+  if (opts.cookiesFile) args.push('--cookies', opts.cookiesFile);
+  if (opts.proxy) args.push('--proxy', opts.proxy);
+  args.push('--', url);
+  return args;
+}
+
+function runYtDlpCommand(opts: YtDlpOptions, args: string[], signal: AbortSignal): Promise<YtDlpInfo> {
   return new Promise((resolve, reject) => {
     execFile(
       opts.bin,
-      ytDlpArgs(opts, url),
+      args,
       { maxBuffer: 30 * 1024 * 1024, signal, killSignal: 'SIGKILL', windowsHide: true },
       (error, stdout, stderr) => {
         if (error) {
@@ -212,6 +240,30 @@ export function runYtDlp(opts: YtDlpOptions, url: string, signal: AbortSignal): 
       },
     );
   });
+}
+
+export function runYtDlp(opts: YtDlpOptions, url: string, signal: AbortSignal): Promise<YtDlpInfo> {
+  return runYtDlpCommand(opts, ytDlpArgs(opts, url), signal);
+}
+
+export async function listYtDlpPlaylist(opts: YtDlpOptions, url: string, signal: AbortSignal): Promise<{
+  title: string | null;
+  entries: YtDlpPlaylistEntry[];
+}> {
+  const raw = await runYtDlpCommand(opts, ytDlpPlaylistArgs(opts, url), signal);
+  const entries = (raw.entries ?? []).flatMap((entry, index) => {
+    const candidate = safeHttpUrl(entry.webpage_url ?? entry.url);
+    if (!candidate) return [];
+    return [{
+      id: entry.id || `${index + 1}`,
+      url: candidate,
+      title: entry.title?.trim() || null,
+      durationSeconds: typeof entry.duration === 'number' && entry.duration > 0 ? entry.duration : null,
+      thumbnail: safeHttpUrl(entry.thumbnail),
+    }];
+  });
+  if (entries.length === 0) throw new ProviderError('bad_response', 'yt-dlp returned no playlist entries');
+  return { title: raw.title?.trim() || null, entries };
 }
 
 export function createYtDlpProvider(platform: string, priority: number, opts: YtDlpOptions): Provider {

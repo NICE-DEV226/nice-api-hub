@@ -62,6 +62,7 @@ func Transfer(ctx context.Context, o DownloadOptions, onStart func(*api.Download
 
 type dlEvent struct {
 	kind  string // start | progress | done
+	index int
 	done  int64
 	total int64
 	name  string

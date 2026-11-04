@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { classifyYtDlpFailure, mapYtDlpInfo, ytDlpArgs, type YtDlpInfo } from '../src/providers/impl/ytdlp.js';
+import { classifyYtDlpFailure, mapYtDlpInfo, ytDlpArgs, ytDlpPlaylistArgs, type YtDlpInfo } from '../src/providers/impl/ytdlp.js';
 
 // Real `yt-dlp -J` output captured on 2026-09-19, URLs truncated. See test/fixtures.
 const info = (name: string): YtDlpInfo => JSON.parse(readFileSync(new URL(`./fixtures/ytdlp-${name}.json`, import.meta.url), 'utf8'));
@@ -136,5 +136,12 @@ describe('ytDlpArgs', () => {
     expect(ytDlpArgs({ bin: 'y', jsRuntime: 'node' }, 'https://x')).not.toContain('--proxy');
     const args = ytDlpArgs({ bin: 'y', jsRuntime: 'node', proxy: 'http://p:1', cookiesFile: '/c.txt' }, 'https://x');
     expect(args).toEqual(expect.arrayContaining(['--proxy', 'http://p:1', '--cookies', '/c.txt']));
+  });
+
+  it('uses flat playlist enumeration without downloading entries', () => {
+    const args = ytDlpPlaylistArgs({ bin: 'yt-dlp', jsRuntime: 'node' }, 'https://www.youtube.com/playlist?list=x');
+    expect(args).toEqual(expect.arrayContaining(['--flat-playlist', '--skip-download', '--ignore-config']));
+    expect(args.slice(-2)).toEqual(['--', 'https://www.youtube.com/playlist?list=x']);
+    expect(args).not.toContain('--no-playlist');
   });
 });

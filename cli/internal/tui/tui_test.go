@@ -298,7 +298,7 @@ func TestPlaygroundResolvesAndDownloads(t *testing.T) {
 	d := testDeps(t, g, true, false)
 	tm := start(t, d, 130, 40)
 	tm.Send(press("2")) // only Dashboard + Playground here, so "2" is the Playground
-	waitFor(t, tm, "Paste a media URL")
+	waitFor(t, tm, "Paste a media or playlist URL")
 	tm.Type("https://www.youtube.com/watch?v=abc")
 	tm.Send(press("enter"))
 	waitFor(t, tm, "Big Buck Bunny", "ytdlp-youtube", "Best quality", "1080p", "233.7 MB", "Audio only", "MP3")
@@ -331,7 +331,7 @@ func TestPlaygroundSurfacesGatewayErrors(t *testing.T) {
 	t.Cleanup(srv.Close)
 	c, _ := api.New(srv.URL, "k", "a")
 	tm := teatest.NewTestModel(t, NewApp(Deps{Client: c, Profile: "t", HasAPI: true, Copy: func(string) tea.Cmd { return nil }}), teatest.WithInitialTermSize(120, 36))
-	waitFor(t, tm, "Paste a media URL") // with an API key the app opens on the Playground
+	waitFor(t, tm, "Paste a media or playlist URL") // with an API key the app opens on the Playground
 	tm.Type("https://www.tiktok.com/@x/video/1")
 	tm.Send(press("enter"))
 	waitFor(t, tm, "content_unavailable", "private, removed")

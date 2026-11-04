@@ -247,7 +247,6 @@ func (m *playground) startDownload(req api.DownloadRequest, fallback string) tea
 	m.dl.finished = finished
 	m.state = pgDownloading
 	go func() {
-		defer close(finished)
 		res, err := Transfer(ctx, opts,
 			func(s *api.DownloadStream) {
 				name := s.Filename
@@ -262,6 +261,7 @@ func (m *playground) startDownload(req api.DownloadRequest, fallback string) tea
 				default:
 				}
 			})
+		close(finished)
 		ch <- dlEvent{kind: "done", res: res, err: err}
 	}()
 	return func() tea.Msg { return dlStartMsg{ch: ch, cancel: cancel} }
@@ -276,7 +276,6 @@ func (m *playground) startPlaylistDownload() tea.Cmd {
 	finished := make(chan struct{})
 	m.dl.finished = finished
 	go func() {
-		defer close(finished)
 		defer close(ch)
 		for i, entry := range m.playlist.Entries {
 			fallback := fmt.Sprintf("playlist-%03d.mp4", i+1)
@@ -297,9 +296,11 @@ func (m *playground) startPlaylistDownload() tea.Cmd {
 			})
 			ch <- dlEvent{kind: "done", index: i, res: res, err: err}
 			if err != nil && errors.Is(err, context.Canceled) {
+				close(finished)
 				return
 			}
 		}
+		close(finished)
 		ch <- dlEvent{kind: "playlist-done"}
 	}()
 	return func() tea.Msg { return dlStartMsg{ch: ch, cancel: cancel} }

@@ -24,6 +24,7 @@ type Deps struct {
 	HasAdmin    bool // an admin token is configured: the accounts tab works
 	Now         func() time.Time
 	DownloadDir string
+	DataDir     string // persistent local state, including resumable playlist checkpoints
 	// Refresh is the dashboard auto-refresh period (0 disables it).
 	Refresh time.Duration
 	// Thumb fetches and decodes a thumbnail; the default downloads it directly. Tests replace it.

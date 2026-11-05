@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -39,7 +40,7 @@ type DownloadResult struct {
 // command (with a progress bar) and by the full-screen app (which renders its own bar).
 func Transfer(ctx context.Context, o DownloadOptions, onStart func(*api.DownloadStream), onProgress dl.Progress) (DownloadResult, error) {
 	start := time.Now()
-	s, err := o.Client.Download(ctx, o.Request)
+	s, err := openWithRetry(ctx, o.Client, o.Request)
 	if err != nil {
 		return DownloadResult{}, err
 	}
@@ -56,6 +57,30 @@ func Transfer(ctx context.Context, o DownloadOptions, onStart func(*api.Download
 		return DownloadResult{Path: path, Bytes: n, Provider: s.Provider}, err
 	}
 	return DownloadResult{Path: path, Bytes: n, Provider: s.Provider, Elapsed: time.Since(start)}, nil
+}
+
+func openWithRetry(ctx context.Context, client *api.Client, request api.DownloadRequest) (*api.DownloadStream, error) {
+	const attempts = 3
+	for attempt := 0; attempt < attempts; attempt++ {
+		stream, err := client.Download(ctx, request)
+		if err == nil {
+			return stream, nil
+		}
+		var problem *api.Problem
+		if errors.As(err, &problem) && problem.Status < 500 && problem.Status != 429 {
+			return nil, err
+		}
+		if attempt == attempts-1 {
+			return nil, err
+		}
+		delay := time.Duration(1<<attempt) * time.Second
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+	return nil, ctx.Err()
 }
 
 // ---- progress bar model ----------------------------------------------------------

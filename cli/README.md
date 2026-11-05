@@ -213,6 +213,10 @@ Not in the interface yet: History, Devices and Settings tabs. Use `nah history`,
 Destructive actions (revoke, suspend, rotate a secret, clear the history) ask for confirmation, and refuse to run without
 `--yes` when there is no terminal, so a script can never do them by accident.
 
+Playlist downloads keep a private checkpoint in the CLI data directory. After a network interruption, process restart or sleep/wake,
+choose **Resume remaining**: completed files that still exist are skipped, interrupted items are retried, and failed items are shown
+with `failed · retry`. Checkpoints are written atomically, so a power loss cannot leave a half-written playlist state.
+
 ## Accounts, computers and keys
 
 The gateway identifies a person by their **computer**, not by an e-mail address.

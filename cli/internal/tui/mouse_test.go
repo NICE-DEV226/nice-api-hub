@@ -33,7 +33,7 @@ func sized(t *testing.T, w, h int, hasAPI, hasAdmin bool) *App {
 
 func TestClickingATabSwitchesToIt(t *testing.T) {
 	a := sized(t, 130, 40, true, true)
-	if len(a.tabSpans) != 3 {
+	if len(a.tabSpans) != 5 {
 		t.Fatalf("spans: %v", a.tabSpans)
 	}
 	for want := range a.tabs {
@@ -81,7 +81,12 @@ func TestTabsStayClickableWhenTheHeaderWrapsOnNarrowTerminals(t *testing.T) {
 func resultPlayground(t *testing.T) (*App, *playground) {
 	t.Helper()
 	a := sized(t, 110, 36, true, false)
-	a.switchTo(len(a.tabs) - 1)
+	for i, t := range a.tabs {
+		if t.id == tabPlayground {
+			a.switchTo(i)
+			break
+		}
+	}
 	pg := a.current().(*playground)
 	yes := true
 	pg.res = &api.MediaResult{Data: api.Media{Platform: "youtube", Provider: "ytdlp", SourceURL: "https://youtu.be/x", Variants: []api.Variant{

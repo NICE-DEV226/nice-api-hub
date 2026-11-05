@@ -222,7 +222,7 @@ func TestSetupDoneRebuildsTheTabsFromTheSavedCredentials(t *testing.T) {
 	c, _ := api.New(g.URL, "nah_live_new", "")
 	sess.reloadDep = Deps{Client: c, Profile: "test", HasAPI: true, Session: sess, Copy: func(string) tea.Cmd { return nil }}
 	_, cmd := a.Update(setupDoneMsg{})
-	if a.setupMode || len(a.tabs) != 2 {
+	if a.setupMode || len(a.tabs) != 4 {
 		t.Fatalf("setup=%v tabs=%d", a.setupMode, len(a.tabs))
 	}
 	if a.tabs[a.active].id != tabPlayground {

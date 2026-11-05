@@ -23,16 +23,21 @@ type Env struct {
 	IsDir  func(string) bool
 	// Drives lists the Windows drive roots that exist ("C:\", "D:\"). Unused elsewhere.
 	Drives func() []string
+	// ReadDir lists subfolders of dir. If nil, no directory reading is performed for removable drives.
+	ReadDir func(string) ([]Entry, error)
+	// RemovableDrives lists connected/external devices or mountpoints. If nil, automatic discovery runs.
+	RemovableDrives func() []Place
 }
 
 // System returns the real environment.
 func System() Env {
 	return Env{
-		GOOS:   runtime.GOOS,
-		Home:   os.UserHomeDir,
-		Getenv: os.Getenv,
-		IsDir:  isDir,
-		Drives: windowsDrives,
+		GOOS:    runtime.GOOS,
+		Home:    os.UserHomeDir,
+		Getenv:  os.Getenv,
+		IsDir:   isDir,
+		Drives:  windowsDrives,
+		ReadDir: func(dir string) ([]Entry, error) { return List(dir, false) },
 	}
 }
 
@@ -186,9 +191,23 @@ func Places(e Env, downloads string, recent []string) []Place {
 			}
 		}
 	case "darwin":
+		if e.RemovableDrives != nil {
+			for _, p := range e.RemovableDrives() {
+				add(p.Label, p.Path)
+			}
+		} else {
+			addRemovableDarwin(add, e)
+		}
 		add("Volumes", "/Volumes")
 		add("/", "/")
 	default:
+		if e.RemovableDrives != nil {
+			for _, p := range e.RemovableDrives() {
+				add(p.Label, p.Path)
+			}
+		} else {
+			addRemovableLinux(add, e)
+		}
 		user := e.Getenv("USER")
 		for _, base := range []string{"/run/media/" + user, "/media/" + user, "/media", "/mnt"} {
 			if user == "" && strings.HasSuffix(base, "/") {
@@ -202,6 +221,53 @@ func Places(e Env, downloads string, recent []string) []Place {
 		add("/", "/")
 	}
 	return out
+}
+
+func addRemovableLinux(add func(string, string), e Env) {
+	if e.ReadDir == nil {
+		return
+	}
+	user := e.Getenv("USER")
+	bases := []string{}
+	if user != "" {
+		bases = append(bases, "/run/media/"+user, "/media/"+user)
+	}
+	bases = append(bases, "/media", "/mnt")
+	for _, base := range bases {
+		if !e.IsDir(base) {
+			continue
+		}
+		sub, err := e.ReadDir(base)
+		if err != nil {
+			continue
+		}
+		for _, it := range sub {
+			if strings.HasPrefix(it.Name, ".") {
+				continue
+			}
+			label := "USB: " + it.Name
+			if strings.HasPrefix(base, "/mnt") {
+				label = "Drive: " + it.Name
+			}
+			add(label, it.Path)
+		}
+	}
+}
+
+func addRemovableDarwin(add func(string, string), e Env) {
+	if e.ReadDir == nil || !e.IsDir("/Volumes") {
+		return
+	}
+	sub, err := e.ReadDir("/Volumes")
+	if err != nil {
+		return
+	}
+	for _, it := range sub {
+		if strings.HasPrefix(it.Name, ".") || it.Name == "Macintosh HD" {
+			continue
+		}
+		add("USB: "+it.Name, it.Path)
+	}
 }
 
 // Expand turns "~", "~/x" and "~\x" into paths under home; other input is returned as typed.

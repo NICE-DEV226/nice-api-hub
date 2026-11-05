@@ -4,6 +4,7 @@ import (
 	"context"
 	"image"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/api"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/fsnav"
+	"github.com/NICE-DEV226/nice-api-hub/cli/internal/history"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/opener"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/preview"
 )
@@ -25,6 +27,7 @@ type Deps struct {
 	Now         func() time.Time
 	DownloadDir string
 	DataDir     string // persistent local state, including resumable playlist checkpoints
+	History     *history.Store
 	// Refresh is the dashboard auto-refresh period (0 disables it).
 	Refresh time.Duration
 	// Thumb fetches and decodes a thumbnail; the default downloads it directly. Tests replace it.
@@ -55,6 +58,9 @@ func (d *Deps) defaults() {
 	}
 	if d.DownloadDir == "" {
 		d.DownloadDir = "."
+	}
+	if d.History == nil && d.DataDir != "" {
+		d.History = &history.Store{Path: filepath.Join(d.DataDir, "history.jsonl")}
 	}
 	if d.Copy == nil {
 		d.Copy = copyOSC52

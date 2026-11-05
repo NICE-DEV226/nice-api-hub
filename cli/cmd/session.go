@@ -124,6 +124,7 @@ func (a *app) tuiDeps(dir string) (tui.Deps, error) {
 		Now:         a.env.Now,
 		DownloadDir: dir,
 		DataDir:     dataDir,
+		History:     a.history(),
 		Refresh:     15 * time.Second,
 		Session:     session{a: a, dir: dir},
 		FS:          fsnav.System(),

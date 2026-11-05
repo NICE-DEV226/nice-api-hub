@@ -735,7 +735,7 @@ func (m *playground) playlistScreen() string {
 	b.WriteString("\n\n ")
 	b.WriteString(ui.Bold.Render(ui.Truncate(title, width)))
 	b.WriteString("\n ")
-	b.WriteString(ui.MutedText.Render(fmt.Sprintf("%d videos", len(m.playlist.Entries))))
+	b.WriteString(ui.MutedText.Render(m.playlistSummary()))
 	b.WriteString("\n\n ")
 	b.WriteString(m.tbl.View())
 	m.gridY = strings.Count(b.String(), "\n") - len(m.playlist.Entries) + 1
@@ -754,7 +754,7 @@ func (m *playground) playlistScreen() string {
 }
 
 func (m *playground) playlistDownloadScreen() []string {
-	lines := []string{ui.Bold.Render(ui.Deref(m.playlist.Title, "Playlist")), ""}
+	lines := []string{ui.Bold.Render(ui.Deref(m.playlist.Title, "Playlist")), ui.MutedText.Render(m.playlistSummary()), ""}
 	for i, entry := range m.playlist.Entries {
 		status := m.playlistStatus[i]
 		if status == "" {
@@ -762,8 +762,30 @@ func (m *playground) playlistDownloadScreen() []string {
 		}
 		lines = append(lines, fmt.Sprintf("%s %02d  %s", playlistStatusMark(status), i+1, ui.Truncate(ui.Deref(entry.Title, "(untitled)"), maxInt(20, m.w-20))))
 	}
-	lines = append(lines, "", ui.MutedText.Render("esc to cancel"))
+	lines = append(lines, "", ui.MutedText.Render("esc to cancel · completed items are kept"))
 	return lines
+}
+
+func (m *playground) playlistSummary() string {
+	done, failed, active := 0, 0, 0
+	for _, status := range m.playlistStatus {
+		switch status {
+		case "done":
+			done++
+		case "failed":
+			failed++
+		case "downloading":
+			active++
+		}
+	}
+	parts := []string{fmt.Sprintf("%d videos", len(m.playlist.Entries)), fmt.Sprintf("%d downloaded", done)}
+	if active > 0 {
+		parts = append(parts, fmt.Sprintf("%d active", active))
+	}
+	if failed > 0 {
+		parts = append(parts, fmt.Sprintf("%d failed", failed))
+	}
+	return strings.Join(parts, " · ")
 }
 
 func playlistStatusMark(status string) string {

@@ -18,6 +18,8 @@ const (
 	tabDashboard tabID = iota
 	tabAccounts
 	tabPlayground
+	tabHistory
+	tabDevices
 	tabSetup
 )
 
@@ -80,8 +82,11 @@ func (a *App) build(d Deps) {
 		a.tabs = append(a.tabs, tabInfo{tabAccounts, "Accounts", newAccounts(d)})
 	}
 	if d.HasAPI {
+		dlIdx := len(a.tabs)
 		a.tabs = append(a.tabs, tabInfo{tabPlayground, "Download", newPlayground(d)})
-		a.active = len(a.tabs) - 1 // open on what the person came for: pasting a link
+		a.tabs = append(a.tabs, tabInfo{tabHistory, "History", newHistoryView(d)})
+		a.tabs = append(a.tabs, tabInfo{tabDevices, "Devices", newDevicesView(d)})
+		a.active = dlIdx // open on what the person came for: pasting a link
 	}
 }
 

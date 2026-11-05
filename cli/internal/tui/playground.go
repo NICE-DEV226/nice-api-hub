@@ -22,6 +22,7 @@ import (
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/api"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/dl"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/fsnav"
+	"github.com/NICE-DEV226/nice-api-hub/cli/internal/history"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/playlist"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/ui"
 )
@@ -466,6 +467,16 @@ func (m *playground) Update(msg tea.Msg) tea.Cmd {
 					m.playlistStatus[msg.index] = "done"
 					if msg.err != nil {
 						m.playlistStatus[msg.index] = "failed"
+					} else if m.d.History != nil && m.playlist != nil && msg.index < len(m.playlist.Entries) {
+						entry := m.playlist.Entries[msg.index]
+						_, _ = m.d.History.Add(history.Entry{
+							URL:      entry.URL,
+							Title:    ui.Deref(entry.Title, ""),
+							Platform: m.playlist.Platform,
+							Kind:     "video",
+							Path:     msg.res.Path,
+							Bytes:    msg.res.Bytes,
+						})
 					}
 				}
 				return waitEvent(m.dl.ch)
@@ -480,6 +491,26 @@ func (m *playground) Update(msg tea.Msg) tea.Cmd {
 			case msg.err != nil:
 				m.toast.set(now, "Download failed: "+msg.err.Error(), true)
 			default:
+				if m.d.History != nil && m.res != nil {
+					kind := "video"
+					height := 0
+					audioFormat := ""
+					if o := m.selectedOption(); o != nil {
+						kind = o.Req.Kind
+						height = o.Req.MaxHeight
+						audioFormat = o.Req.AudioFormat
+					}
+					_, _ = m.d.History.Add(history.Entry{
+						URL:         m.res.Data.SourceURL,
+						Title:       ui.Deref(m.res.Data.Title, ""),
+						Platform:    m.res.Data.Platform,
+						Kind:        kind,
+						MaxHeight:   height,
+						AudioFormat: audioFormat,
+						Path:        msg.res.Path,
+						Bytes:       msg.res.Bytes,
+					})
+				}
 				home, _ := m.d.FS.Home()
 				m.toast.set(now, fmt.Sprintf("Saved %s (%s in %s) in %s", filepath.Base(msg.res.Path), ui.Bytes(msg.res.Bytes),
 					msg.res.Elapsed.Round(100*time.Millisecond), fsnav.Short(filepath.Dir(msg.res.Path), home, 40)), false)

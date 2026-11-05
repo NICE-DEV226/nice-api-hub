@@ -145,6 +145,74 @@ func TestPlacesPerOperatingSystem(t *testing.T) {
 	}
 }
 
+func TestPlacesRemovableDrives(t *testing.T) {
+	home := "/home/ada"
+	dirs := map[string]bool{
+		home:                   true,
+		home + "/Downloads":    true,
+		"/run/media/ada":       true,
+		"/run/media/ada/USB32": true,
+		"/":                    true,
+	}
+	env := fakeEnv("linux", home, dirs)
+	env.ReadDir = func(dir string) ([]Entry, error) {
+		if dir == "/run/media/ada" {
+			return []Entry{{Name: "USB32", Path: "/run/media/ada/USB32"}}, nil
+		}
+		return nil, nil
+	}
+	got := labels(Places(env, "", nil))
+	want := []string{"Downloads", "Home", "USB: USB32", "Drives", "/"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("linux removable: got %v, want %v", got, want)
+	}
+
+	// Darwin
+	macHome := "/Users/ada"
+	macDirs := map[string]bool{
+		macHome:                 true,
+		macHome + "/Downloads":  true,
+		"/Volumes":              true,
+		"/Volumes/Macintosh HD": true,
+		"/Volumes/T5_PORTABLE":  true,
+		"/":                     true,
+	}
+	macEnv := fakeEnv("darwin", macHome, macDirs)
+	macEnv.ReadDir = func(dir string) ([]Entry, error) {
+		if dir == "/Volumes" {
+			return []Entry{
+				{Name: "Macintosh HD", Path: "/Volumes/Macintosh HD"},
+				{Name: "T5_PORTABLE", Path: "/Volumes/T5_PORTABLE"},
+				{Name: ".Trashes", Path: "/Volumes/.Trashes", Hidden: true},
+			}, nil
+		}
+		return nil, nil
+	}
+	macGot := labels(Places(macEnv, "", nil))
+	macWant := []string{"Downloads", "Home", "USB: T5_PORTABLE", "Volumes", "/"}
+	if !reflect.DeepEqual(macGot, macWant) {
+		t.Fatalf("darwin removable: got %v, want %v", macGot, macWant)
+	}
+
+	// Explicit RemovableDrives override
+	overrideDirs := map[string]bool{
+		home:                true,
+		home + "/Downloads": true,
+		"/run/media/ada":    true,
+		"/custom/drive":     true,
+		"/":                 true,
+	}
+	overrideEnv := fakeEnv("linux", home, overrideDirs)
+	overrideEnv.RemovableDrives = func() []Place {
+		return []Place{{Label: "Custom Drive", Path: "/custom/drive"}}
+	}
+	overrideGot := labels(Places(overrideEnv, "", nil))
+	overrideWant := []string{"Downloads", "Home", "Custom Drive", "Drives", "/"}
+	if !reflect.DeepEqual(overrideGot, overrideWant) {
+		t.Fatalf("override removable: got %v, want %v", overrideGot, overrideWant)
+	}
+}
+
 func TestExpandAndLooksLikePath(t *testing.T) {
 	if Expand("~", "/h") != "/h" || Expand("~/x", "/h") != filepath.Join("/h", "x") || Expand("~x", "/h") != "~x" || Expand("/a", "/h") != "/a" {
 		t.Fatal("expand")

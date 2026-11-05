@@ -18,6 +18,7 @@ import (
 	"github.com/charmbracelet/x/exp/teatest"
 
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/api"
+	"github.com/NICE-DEV226/nice-api-hub/cli/internal/history"
 )
 
 // fakeGateway emulates the parts of the gateway the interface talks to and records mutating calls.
@@ -103,6 +104,14 @@ func newFakeGateway(t *testing.T) *fakeGateway {
 			w.Header().Set("Content-Length", "11")
 			w.Header().Set("X-Download-Provider", "ytdlp-youtube")
 			io.WriteString(w, "hello world")
+		case sig == "GET /v1/keys":
+			js(w, 200, `{"data":[{"id":"k-laptop-1111","accountId":"`+acct1+`","label":"laptop","prefix":"nah_live_lapt","environment":"live","platforms":null,"createdAt":"2026-09-10T10:00:00Z","expiresAt":null,"revokedAt":null,"lastUsedAt":"2026-09-19T10:00:00Z","scopes":["media"],"createdVia":"device","current":true},{"id":"k-script-2222","accountId":"`+acct1+`","label":"backup-job","prefix":"nah_live_scpt","environment":"live","platforms":null,"createdAt":"2026-09-12T10:00:00Z","expiresAt":null,"revokedAt":null,"lastUsedAt":null,"scopes":["media"],"createdVia":"cli","current":false}]}`)
+		case sig == "POST /v1/keys":
+			js(w, 201, `{"data":{"id":"k-new-3333","accountId":"`+acct1+`","label":"new-script","prefix":"nah_live_news","environment":"live","platforms":null,"createdAt":"2026-09-19T10:00:00Z","expiresAt":null,"revokedAt":null,"lastUsedAt":null,"key":"nah_live_NEWKEYSECRET1234567890123456","scopes":["media"],"createdVia":"cli","current":false}}`)
+		case strings.HasPrefix(sig, "POST /v1/keys/") && strings.HasSuffix(sig, "/revoke"):
+			js(w, 200, `{"data":{"id":"k-script-2222","accountId":"`+acct1+`","label":"backup-job","prefix":"nah_live_scpt","environment":"live","createdAt":"2026-09-12T10:00:00Z","revokedAt":"2026-09-19T11:00:00Z","current":false}}`)
+		case strings.HasPrefix(sig, "POST /v1/keys/") && strings.HasSuffix(sig, "/rotate"):
+			js(w, 200, `{"data":{"id":"k-rotated-4444","accountId":"`+acct1+`","label":"backup-job","prefix":"nah_live_rota","environment":"live","createdAt":"2026-09-19T11:00:00Z","key":"nah_live_ROTATEDKEYSECRET1234567890","current":false}}`)
 		default:
 			js(w, 404, `{"type":"x","title":"Not Found","status":404,"code":"not_found","detail":"no route `+sig+`"}`)
 		}
@@ -177,8 +186,8 @@ func TestDashboardShowsHealthPlatformsAndQuota(t *testing.T) {
 func TestTabsAdaptToCredentials(t *testing.T) {
 	g := newFakeGateway(t)
 	only := NewApp(testDeps(t, g, true, false))
-	if len(only.tabs) != 2 || only.tabs[1].title != "Download" {
-		t.Fatalf("API key only => Dashboard + Playground, got %+v", only.tabs)
+	if len(only.tabs) != 4 || only.tabs[1].title != "Download" || only.tabs[2].title != "History" || only.tabs[3].title != "Devices" {
+		t.Fatalf("API key only => Dashboard + Download + History + Devices, got %+v", only.tabs)
 	}
 	adm := NewApp(testDeps(t, g, false, true))
 	if len(adm.tabs) != 2 || adm.tabs[1].title != "Accounts" {
@@ -336,6 +345,82 @@ func TestPlaygroundSurfacesGatewayErrors(t *testing.T) {
 	tm.Send(press("enter"))
 	waitFor(t, tm, "content_unavailable", "private, removed")
 	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+}
+
+func TestHistoryBrowseAndActions(t *testing.T) {
+	g := newFakeGateway(t)
+	histPath := filepath.Join(t.TempDir(), "history.jsonl")
+	st := &history.Store{Path: histPath}
+	_, err := st.Add(history.Entry{
+		URL:       "https://youtube.com/watch?v=sample",
+		Title:     "Sample Video",
+		Platform:  "youtube",
+		Kind:      "video",
+		MaxHeight: 1080,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.Add(history.Entry{
+		URL:         "https://soundcloud.com/song",
+		Title:       "Second Song",
+		Platform:    "soundcloud",
+		Kind:        "audio",
+		AudioFormat: "mp3",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	d := testDeps(t, g, true, false)
+	d.History = st
+	tm := start(t, d, 130, 40)
+	tm.Send(press("3")) // switch to History tab (tab 3 when no admin: 1=Dashboard, 2=Download, 3=History, 4=Devices)
+	waitFor(t, tm, "Downloads (2)", "Sample Video", "Second Song", "1080p", "mp3")
+
+	// Filter
+	tm.Send(press("/"))
+	waitFor(t, tm, "type to filter")
+	tm.Type("Sample")
+	waitFor(t, tm, "Downloads (1)", "Sample Video")
+	tm.Send(press("esc"))
+
+	// Delete
+	tm.Send(press("x"))
+	waitFor(t, tm, "Confirm")
+	tm.Send(press("y"))
+	waitFor(t, tm, "Entry removed from history")
+
+	tm.Send(press("q"))
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+}
+
+func TestDevicesBrowseAndActions(t *testing.T) {
+	g := newFakeGateway(t)
+	d := testDeps(t, g, true, false)
+	tm := start(t, d, 130, 40)
+	tm.Send(press("4")) // switch to Devices tab (tab 4: 1=Dashboard, 2=Download, 3=History, 4=Devices)
+	waitFor(t, tm, "Devices & Keys", "laptop (this computer)", "media")
+
+	// Create new key
+	tm.Send(press("n"))
+	waitFor(t, tm, "New Device / API Key")
+	tm.Type("new-script")
+	tm.Send(press("enter"))
+	waitFor(t, tm, "Key Created", "nah_live_NEWKEYSECRET1234567890123456")
+	eventually(t, func() bool { return g.called("POST /v1/keys") }, "key creation call")
+	tm.Send(press("esc"))
+
+	// Revoke key
+	tm.Send(press("r"))
+	waitFor(t, tm, "Confirm", "Revoke key")
+	tm.Send(press("y"))
+	eventually(t, func() bool {
+		return g.called("POST /v1/keys/k-laptop-1111/revoke") || g.called("POST /v1/keys/k-script-2222/revoke")
+	}, "key revocation call")
+
+	tm.Send(press("q"))
 	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
 }
 

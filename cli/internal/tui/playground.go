@@ -304,6 +304,7 @@ func (m *playground) startDownload(req api.DownloadRequest, fallback string) tea
 	m.dl.name, m.dl.done, m.dl.total, m.dl.speed, m.dl.started = "", 0, -1, speedMeter{}, m.d.Now()
 	finished := make(chan struct{})
 	m.dl.finished = finished
+	m.dl.cancel = cancel
 	m.state = pgDownloading
 	go func() {
 		res, err := Transfer(ctx, opts,
@@ -338,6 +339,7 @@ func (m *playground) startPlaylistDownload() tea.Cmd {
 	m.dl.name, m.dl.done, m.dl.total, m.dl.speed, m.dl.started = "", 0, -1, speedMeter{}, m.d.Now()
 	finished := make(chan struct{})
 	m.dl.finished = finished
+	m.dl.cancel = cancel
 	go func() {
 		defer close(ch)
 		for i, entry := range m.playlist.Entries {

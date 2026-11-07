@@ -266,6 +266,9 @@ func (a *App) onMouse(msg tea.MouseMsg) tea.Cmd {
 
 func (a *App) header() string {
 	brand := ui.Badge.Render(" nah ")
+	if a.d.Version != "" {
+		brand += ui.MutedText.Render(" " + a.d.Version)
+	}
 	where := ui.MutedText.Render(" " + a.d.Profile + " · " + a.d.Client.BaseURL)
 	left := brand + where
 

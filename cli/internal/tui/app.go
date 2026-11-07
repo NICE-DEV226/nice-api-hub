@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -343,7 +344,7 @@ func (a *App) View() string {
 		return ""
 	}
 	if a.w > 0 && (a.w < 60 || a.h < 14) {
-		return "\n  Terminal too small (" + itoa(a.w) + "×" + itoa(a.h) + "). Please enlarge it to at least 60×14.\n"
+		return "\n  Terminal too small (" + strconv.Itoa(a.w) + "×" + strconv.Itoa(a.h) + "). Please enlarge it to at least 60×14.\n"
 	}
 	_, bh := a.bodySize()
 	body := lipgloss.NewStyle().Height(bh).MaxHeight(bh).Render(a.current().View())
@@ -353,16 +354,3 @@ func (a *App) View() string {
 	return a.header() + "\n\n" + body + "\n" + a.footer()
 }
 
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var b [12]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(b[i:])
-}

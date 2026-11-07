@@ -177,6 +177,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.quit()
 
 	case setupDoneMsg:
+		if a.d.Session == nil {
+			return a, nil
+		}
 		d, err := a.d.Session.Reload()
 		if err != nil {
 			return a, nil

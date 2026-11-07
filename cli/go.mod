@@ -1,6 +1,6 @@
 module github.com/NICE-DEV226/nice-api-hub/cli
 
-go 1.26.6
+go 1.26.10
 
 require (
 	github.com/atotto/clipboard v0.1.4

@@ -280,7 +280,8 @@ func (a *App) header() string {
 	const quitLabel = "  × Quit "
 	quitW := lipgloss.Width(quitLabel)
 	total := widths + quitW
-	oneLine := a.setupMode || a.w-lipgloss.Width(left)-total >= 1
+	gap := a.w - lipgloss.Width(left) - total
+	oneLine := gap >= 1 // setupMode used to force this: a 0-width first frame then panicked in strings.Repeat
 
 	// x where the right-hand strip (tabs, then Quit) starts
 	x := 0
@@ -309,7 +310,7 @@ func (a *App) header() string {
 		return left + "\n" + right
 	}
 	a.tabRow, a.bodyTop = 0, 2
-	return left + strings.Repeat(" ", a.w-lipgloss.Width(left)-total) + right
+	return left + strings.Repeat(" ", gap) + right
 }
 
 type helpKeys struct{ short, full []key.Binding }
@@ -346,7 +347,7 @@ func (a *App) View() string {
 	if a.quitting {
 		return ""
 	}
-	if a.w > 0 && (a.w < 60 || a.h < 14) {
+	if a.w < 60 || a.h < 14 {
 		return "\n  Terminal too small (" + strconv.Itoa(a.w) + "×" + strconv.Itoa(a.h) + "). Please enlarge it to at least 60×14.\n"
 	}
 	_, bh := a.bodySize()

@@ -43,8 +43,8 @@ var (
 	PanelHot  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(Accent).Padding(0, 1)
 )
 
-// StatusStyle colours a platform/account status word.
-func StatusStyle(status string) lipgloss.Style {
+// statusStyle colours a platform/account status word.
+func statusStyle(status string) lipgloss.Style {
 	switch status {
 	case "operational", "active", "succeeded", "delivered", "ready", "ok":
 		return OK
@@ -58,7 +58,7 @@ func StatusStyle(status string) lipgloss.Style {
 
 // Dot renders a coloured status bullet followed by the status word.
 func Dot(status string) string {
-	return StatusStyle(status).Render("● " + status)
+	return statusStyle(status).Render("● " + status)
 }
 
 // KV renders aligned "key  value" lines.

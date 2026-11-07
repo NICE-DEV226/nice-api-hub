@@ -14,7 +14,7 @@ var sgr = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 func TestPillHasTheSameWidthWithAndWithoutRoundCaps(t *testing.T) {
 	defer func(v bool) { RoundCaps = v }(RoundCaps)
 	for _, mk := range []func() string{
-		func() string { return Pill("Save here", Subtle, Text) },
+		func() string { return PillOn("Save here", Subtle, Text, nil) },
 		func() string { return KeyPill("enter", "Save here") },
 	} {
 		RoundCaps = false

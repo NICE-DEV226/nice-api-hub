@@ -575,10 +575,10 @@ func (m *setupView) render(logo bool) (string, bool) {
 		if m.err != nil {
 			b.WriteString(ui.Danger.Render(wrap("✗ "+errText(m.err), inner)) + "\n\n")
 		}
-		b.WriteString("Where is your gateway?\n\n" + m.url.View() + "\n\n" + ui.MutedText.Render("enter to connect"))
+		b.WriteString(ui.Heading.Render("Where is your gateway?") + "\n\n" + m.url.View() + "\n\n" + ui.MutedText.Render("enter to connect"))
 
 	case stMenu:
-		b.WriteString("What do you want to do?\n\n")
+		b.WriteString(ui.Heading.Render("What do you want to do?") + "\n\n")
 		lines := strings.Count(b.String(), "\n") // content line of the first entry
 		for i, it := range m.items {
 			m.itemsY = append(m.itemsY, lines+i*3)
@@ -594,18 +594,18 @@ func (m *setupView) render(logo bool) (string, bool) {
 		}
 
 	case stName:
-		b.WriteString("Name your account\n" + ui.MutedText.Render("Leave empty to use this computer's name.") + "\n\n" + m.in.View() + "\n\n")
+		b.WriteString(ui.Heading.Render("Name your account") + "\n" + ui.MutedText.Render("Leave empty to use this computer's name.") + "\n\n" + m.in.View() + "\n\n")
 		b.WriteString(m.inputFooter(inner))
 	case stInvite:
-		b.WriteString("This gateway needs an invite code\n\n" + m.in.View() + "\n\n" + m.inputFooter(inner))
+		b.WriteString(ui.Heading.Render("This gateway needs an invite code") + "\n\n" + m.in.View() + "\n\n" + m.inputFooter(inner))
 	case stCode:
-		b.WriteString("Link code\n" + ui.MutedText.Render("On your other computer run `nah link`, then type the code here.") + "\n\n" + m.in.View() + "\n\n" + m.inputFooter(inner))
+		b.WriteString(ui.Heading.Render("Link code") + "\n" + ui.MutedText.Render("On your other computer run `nah link`, then type the code here.") + "\n\n" + m.in.View() + "\n\n" + m.inputFooter(inner))
 	case stRecoverKey:
-		b.WriteString("Recovery key\n" + ui.MutedText.Render("The key you were shown when you created your account.") + "\n\n" + m.in.View() + "\n\n" + m.inputFooter(inner))
+		b.WriteString(ui.Heading.Render("Recovery key") + "\n" + ui.MutedText.Render("The key you were shown when you created your account.") + "\n\n" + m.in.View() + "\n\n" + m.inputFooter(inner))
 	case stAPIKey:
-		b.WriteString("API key\n\n" + m.in.View() + "\n\n" + m.inputFooter(inner))
+		b.WriteString(ui.Heading.Render("API key") + "\n\n" + m.in.View() + "\n\n" + m.inputFooter(inner))
 	case stAdmin:
-		b.WriteString("Admin token\n" + ui.MutedText.Render("Kept in your system keychain. Never shown again.") + "\n\n" + m.in.View() + "\n\n" + m.inputFooter(inner))
+		b.WriteString(ui.Heading.Render("Admin token") + "\n" + ui.MutedText.Render("Kept in your system keychain. Never shown again.") + "\n\n" + m.in.View() + "\n\n" + m.inputFooter(inner))
 
 	case stWork:
 		b.WriteString(m.sp.View() + " " + m.step + "\n\n" + ui.MutedText.Render("esc to cancel"))

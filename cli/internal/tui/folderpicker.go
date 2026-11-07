@@ -497,7 +497,7 @@ func (p *folderPicker) View(w, h int) string {
 		blank()
 	}
 
-	add("", lipgloss.NewStyle().Bold(true).Foreground(ui.Text).Render(p.title))
+	add("", ui.Title.Render(p.title))
 	crumbs, spans := p.renderCrumbs(room)
 	add("crumbs", crumbs)
 	p.crumbs = spans
@@ -551,12 +551,12 @@ func (p *folderPicker) View(w, h int) string {
 	askText := ""
 	if p.canAsk && !p.creating {
 		gap()
-		box := "[ ]"
+		box := ui.MutedText.Render("[ ]")
 		if p.ask {
-			box = "[x]"
+			box = ui.Title.Render("[x]")
 		}
-		askText = box + " Ask where to save every time"
-		add("ask", ui.MutedText.Render(askText)+ui.MutedText.Render("  ctrl+a"))
+		askText = box + " " + lipgloss.NewStyle().Foreground(ui.Text).Render("Ask where to save every time")
+		add("ask", askText+"  "+ui.MutedText.Render("ctrl+a"))
 	}
 	gap()
 	p.acts.fill, p.acts.under = ui.ChipBG, ui.CardBG

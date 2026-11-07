@@ -50,6 +50,11 @@ func panelFocus(title, body string, width, height int, focused bool) string {
 	return style.Width(maxInt(12, width-2)).Height(maxInt(3, height-2)).Render(ui.Title.Render(title) + "\n" + body)
 }
 
+// confirmOverlay centres a yes/no prompt: warning title, question, muted hint.
+func confirmOverlay(prompt string, w, h int) string {
+	return overlay(w, h, ui.PanelHot.Render(ui.Warning.Render("Confirm")+"\n\n"+wrap(prompt, 52)+"\n\n"+ui.MutedText.Render("y yes · any other key cancels")))
+}
+
 // overlay centres box inside a w×h area.
 func overlay(w, h int, box string) string {
 	return lipgloss.Place(w, maxInt(h, lipgloss.Height(box)), lipgloss.Center, lipgloss.Center, box)

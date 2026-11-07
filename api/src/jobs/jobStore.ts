@@ -85,7 +85,9 @@ export class JobStore {
   async reserve(accountId: string, max: number): Promise<boolean> {
     const key = `jobs:pending:${accountId}`;
     const n = await this.redis.incr(key);
-    if (n === 1) await this.redis.expire(key, this.ttlSeconds);
+    // Sliding TTL: the counter must not die while jobs are still pending, or the
+    // per-account backlog limit would silently reset for busy accounts.
+    await this.redis.expire(key, this.ttlSeconds);
     if (n > max) {
       await this.redis.decr(key);
       return false;

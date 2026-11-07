@@ -357,7 +357,7 @@ fail-open/closed behaviour with Redis down.
 
 The Go program has its own tests (`cd cli && make test`, or `make race`); they use a fake gateway and, for the
 interface, `teatest`. CI runs the gateway tests against real Postgres and Redis, the CLI tests with the race detector, and a
-Docker build (`.github/workflows/ci.yml`). A daily workflow (`probe.yml`) checks that every provider still works.
+Docker build (`.github/workflows/api.yml`). A daily workflow (`probe.yml`) checks that every provider still works.
 
 ## Legal note
 

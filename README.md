@@ -115,8 +115,8 @@ Everything else (endpoints, configuration, architecture, operations, adding a pr
 
 Things this README does **not** promise, so you are not surprised:
 
-- **Only a pre-release exists so far** (`cli/v0.1.0-rc.1`, which predates the installers). Until a final release is published, the
-  installers pick the newest pre-release and say so.
+- **The installers pick the newest final release** (`cli/v0.1.0` and later) and only fall back to a pre-release,
+  saying so, when no final release exists.
 - **The interface has Dashboard, Accounts (operator) and the download screen.** Download history is available as commands
   (`nah history`, `nah again`); History, Devices and Settings *tabs* are not in the interface yet.
 - **`nah` was run for real on Linux only.** The macOS and Windows builds compile and their platform code (machine id,

@@ -395,20 +395,18 @@ main > section {
 
 .cmp-col, .cmp-row { display: contents; }
 
-.cmp-grid > * {
+.cmp-col > span, .cmp-row > span {
   padding: .7rem .9rem;
   font-size: .82rem;
-  border-bottom: 1px solid var(--border-soft);
 }
-.cmp-grid > *:nth-last-child(-n+4) { border-bottom: none; }
+.cmp-row:not(:last-child) > span { border-bottom: 1px solid var(--border-soft); }
 
-.cmp-head > span {
+.cmp-col > span {
   background: var(--panel);
   color: var(--muted);
   font-weight: 700;
 }
-.cmp-head .cmp-name { color: var(--accent); }
-.cmp-head > span:first-child { background: var(--panel); }
+.cmp-col > .cmp-name { color: var(--accent); }
 
 .cmp-what { color: var(--subtle); }
 .cmp-cell { color: var(--muted); }

@@ -30,39 +30,34 @@ func homeApp(t *testing.T, w, h int) (*App, *playground, *fakeSession, string) {
 	return a, pg, sess, home
 }
 
-func TestTheInputIsCenteredLikeASearchPage(t *testing.T) {
+func TestTheHomeIsAWorkspaceOfTwoPanels(t *testing.T) {
 	a, pg, _, _ := homeApp(t, 160, 40)
 	if a.bodyWidth() != maxContentWidth || a.bodyLeft() != (160-maxContentWidth)/2 {
 		t.Fatalf("content column: %d at %d", a.bodyWidth(), a.bodyLeft())
 	}
-	lines := strings.Split(pg.View(), "\n")
-	var box []string
-	for _, l := range lines {
-		if t := strings.TrimSpace(l); strings.HasPrefix(t, "▗") || strings.HasPrefix(t, "▐") || strings.HasPrefix(t, "▝") {
-			box = append(box, l)
-		}
-	}
-	if len(box) != 5 {
-		t.Fatalf("the home input is a roomy 5-line box, got %d\n%s", len(box), strings.Join(lines, "\n"))
-	}
-	w := lipgloss.Width(strings.TrimSpace(box[0]))
-	left := len(box[0]) - len(strings.TrimLeft(box[0], " "))
-	right := pg.w - left - w
-	if d := left - right; d < -1 || d > 1 {
-		t.Fatalf("the box is not centred: %d left, %d right", left, right)
-	}
-	if w > 90 || w < 60 {
-		t.Fatalf("the input does not stretch across the screen: %d wide", w)
-	}
-	// vertically: in the upper-middle band, not glued to the top or the bottom
-	if pg.inputY < 8 || pg.inputY > pg.h*3/4 {
-		t.Fatalf("input row %d of %d", pg.inputY, pg.h)
-	}
 	out := pg.View()
-	for _, want := range []string{"██", "Paste a media or playlist URL", "Save to", "Change"} {
+	for _, want := range []string{"New download", "Recent", "Paste a media or playlist URL", "Save to", "Change"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q", want)
 		}
+	}
+	if strings.Contains(out, "██") {
+		t.Error("the ASCII logo is gone: the header already says nah")
+	}
+	// the input is the compact 3-line field inside the left panel
+	lines := strings.Split(out, "\n")
+	var box []string
+	for _, l := range lines {
+		if strings.ContainsAny(l, "▗▐▝") {
+			box = append(box, l)
+		}
+	}
+	if len(box) != 3 {
+		t.Fatalf("the home input is a compact 3-line field, got %d\n%s", len(box), strings.Join(lines, "\n"))
+	}
+	// vertically: in the upper-middle band, not glued to the top or the bottom
+	if pg.inputY < 4 || pg.inputY > pg.h*3/4 {
+		t.Fatalf("input row %d of %d", pg.inputY, pg.h)
 	}
 }
 
@@ -266,17 +261,16 @@ func TestPastingAVeryLongLinkNeverBreaksTheInputBox(t *testing.T) {
 		lines := strings.Split(pg.View(), "\n")
 		n := 0
 		for _, l := range lines {
-			tr := strings.TrimSpace(l)
-			if strings.HasPrefix(tr, "▗") || strings.HasPrefix(tr, "▐") || strings.HasPrefix(tr, "▝") {
+			if strings.ContainsAny(l, "▗▐▝") {
 				n++
 			}
 			if w := lipgloss.Width(l); w > size[0] {
 				t.Fatalf("%v: a line is %d wide", size, w)
 			}
 		}
-		want := 5
-		if size[1] < 24 {
-			want = 5
+		want := 3 // the compact framed field: top edge, text, bottom edge
+		if ui.RoundCaps {
+			want = 0 // a pill has no frame lines to count
 		}
 		if n != want {
 			t.Fatalf("%v: the field must stay %d lines, got %d:\n%s", size, want, n, strings.Join(lines, "\n"))

@@ -111,6 +111,10 @@ type playground struct {
 	thumbKey   [2]int // the box the cached lines were drawn for
 	toast      flash
 
+	// recent caches the history entries shown on the home screen; recentDirty reloads them
+	recent      []history.Entry
+	recentDirty bool
+
 	dl struct {
 		name     string
 		done     int64
@@ -138,6 +142,7 @@ func newPlayground(d Deps) *playground {
 		ask: d.Session != nil && d.Session.AskWhereToSave(),
 	}
 	m.tbl = newGrid([]string{"DOWNLOAD AS", "DETAILS"}, []int{0, 24})
+	m.recentDirty = true
 	return m
 }
 
@@ -471,6 +476,7 @@ func (m *playground) Update(msg tea.Msg) tea.Cmd {
 					if msg.err != nil {
 						m.playlistStatus[msg.index] = "failed"
 					} else if m.d.History != nil && m.playlist != nil && msg.index < len(m.playlist.Entries) {
+						m.recentDirty = true
 						entry := m.playlist.Entries[msg.index]
 						_, _ = m.d.History.Add(history.Entry{
 							URL:      entry.URL,
@@ -495,6 +501,7 @@ func (m *playground) Update(msg tea.Msg) tea.Cmd {
 				m.toast.set(now, "Download failed: "+msg.err.Error(), true)
 			default:
 				if m.d.History != nil && m.res != nil {
+					m.recentDirty = true
 					kind := "video"
 					height := 0
 					audioFormat := ""
@@ -863,44 +870,157 @@ func (m *playground) centered(lines []string) string {
 	return b.String()
 }
 
-// homeScreen is the resting state: the logo, one input in the middle, the save folder underneath.
-func (m *playground) homeScreen() string {
-	col := minInt(90, maxInt(30, m.w-6))
-	var lines []string
-	if m.h >= 24 && m.w >= ui.BannerWidth+4 {
-		lines = append(lines, ui.Banner()...)
-		lines = append(lines, "")
+// recentDownloads returns the cached history entries, newest first, reloading the store when dirty.
+func (m *playground) recentDownloads() []history.Entry {
+	if !m.recentDirty {
+		return m.recent
 	}
-	lines = append(lines, "") // room above the input
-	inputAt := len(lines)
-	lines = append(lines, strings.Split(m.inputBox(col, true), "\n")...)
+	m.recentDirty = false
+	m.recent = nil
+	if m.d.History == nil {
+		return nil
+	}
+	if all, err := m.d.History.List(); err == nil {
+		m.recent = all
+	}
+	return m.recent
+}
 
-	switch m.state {
-	case pgResolving:
-		lines = append(lines, "", m.sp.View()+" Resolving… "+ui.MutedText.Render("(extraction can take ~10 s)"))
-	default:
-		lines = append(lines, "", ui.MutedText.Render(ui.Truncate("YouTube, TikTok, X, Instagram, Facebook, SoundCloud and more", col)))
+// recentLine renders one history entry: title on the left, muted platform and age on the right.
+func (m *playground) recentLine(e history.Entry, now time.Time, inner int) string {
+	title := e.Title
+	if title == "" {
+		title = e.URL
 	}
-	lines = append(lines, "")
-	chipAt := len(lines)
-	chip := m.folderLine(col, "tab")
-	lines = append(lines, chip)
-	if m.toast.visible(m.d.Now()) {
+	meta := joinDot(e.Platform, ui.Ago(e.At, now))
+	metaW := lipgloss.Width(meta)
+	tw := maxInt(4, inner-metaW-1)
+	t := ui.Truncate(title, tw)
+	pad := inner - lipgloss.Width(t) - metaW
+	if pad < 1 {
+		pad = 1
+	}
+	return t + strings.Repeat(" ", pad) + ui.MutedText.Render(meta)
+}
+
+// homeScreen is the resting state: a "New download" panel beside a "Recent" panel on wide
+// terminals, stacked on narrow ones. No logo: the header already says nah.
+func (m *playground) homeScreen() string {
+	now := m.d.Now()
+	margin := 1
+	avail := maxInt(20, m.w-2*margin)
+	wide := m.w >= 90
+
+	var leftW, rightW, gap int
+	if wide {
+		gap = 2
+		leftW = (avail - gap) * 3 / 5
+		rightW = avail - gap - leftW
+	} else {
+		leftW, rightW = avail, avail
+	}
+
+	// ---- left panel: the URL field, the platforms hint, the save folder ----
+	inner := leftW - 4 // panel border + padding
+	var body []string
+	body = append(body, "")
+	inputLines := strings.Split(m.inputBox(inner, false), "\n")
+	inputIdx := len(body)
+	body = append(body, inputLines...)
+	body = append(body, "")
+	if m.state == pgResolving {
+		body = append(body, " "+m.sp.View()+" Resolving… "+ui.MutedText.Render("(extraction can take ~10 s)"))
+	} else {
+		body = append(body, " "+ui.MutedText.Render(ui.Truncate("YouTube, TikTok, X, Instagram, Facebook, SoundCloud and more", inner-1)))
+	}
+	body = append(body, "")
+	folderIdx := len(body)
+	chip := m.folderLine(inner, "tab") // already sized to fit: do not rune-truncate styled text
+	body = append(body, chip)
+	body = append(body, "")
+
+	left := panelNote("New download", "", strings.Join(body, "\n"), leftW)
+	leftH := len(body) + 3 // two border rows plus the header line
+
+	// the recent panel: beside the input on wide terminals, under it on narrow ones
+	var right string
+	var rows int
+	if wide {
+		rows = len(body) // same height as the download panel
+		right = m.recentPanel(rows, rightW-4)
+	} else {
+		entries := len(m.recentDownloads())
+		rows = minInt(maxInt(entries, 1), 6) // at least the empty-state hint if it fits
+		if fit := m.h - leftH - 6; rows > fit {
+			rows = maxInt(0, fit)
+		}
+		if rows > 0 {
+			right = m.recentPanel(rows, rightW-4)
+		}
+	}
+
+	// the toast spans the whole column under the panels: inside one it would be truncated away
+	toastH := 0
+	if m.toast.visible(now) {
+		toastH = 2
+	}
+
+	blockH := leftH + toastH
+	if right != "" {
+		if wide {
+			blockH = maxInt(leftH, strings.Count(right, "\n")+1) + toastH
+		} else {
+			blockH = leftH + 2 + strings.Count(right, "\n") + 1 + toastH
+		}
+	}
+	top := maxInt(0, (m.h-blockH)*2/5)
+	leftTop := top
+
+	// remember where the clickable things are (panel border + header + body index)
+	m.inputY = leftTop + 2 + inputIdx
+	m.inputH = len(inputLines)
+	m.chipY = leftTop + 2 + folderIdx
+	m.chipX0 = margin + 2
+	m.chipX1 = margin + 2 + lipgloss.Width(chip)
+
+	var block string
+	if wide {
+		block = lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
+	} else if right != "" {
+		block = left + "\n\n" + right
+	} else {
+		block = left
+	}
+	if toastH > 0 {
 		style := ui.OK
 		if m.toast.bad {
 			style = ui.Danger
 		}
-		lines = append(lines, "", style.Render(ui.Truncate(m.toast.text, m.w-4)))
+		block += "\n\n" + style.Render(ui.Truncate(m.toast.text, avail))
 	}
+	return strings.Repeat("\n", top) + indent(block, " ")
+}
 
-	// remember where the clickable things are
-	top := maxInt(0, (m.h-len(lines))*2/5)
-	m.inputY = top + inputAt
-	m.chipY = top + chipAt
-	w := lipgloss.Width(chip)
-	m.chipX0 = (m.w - w) / 2
-	m.chipX1 = m.chipX0 + w
-	return m.centered(lines)
+// recentPanel draws the "Recent" panel with up to rows entries; extra body lines stay blank so
+// the panel matches the height of the download panel beside it.
+func (m *playground) recentPanel(rows, inner int) string {
+	entries := m.recentDownloads()
+	now := m.d.Now()
+	note := ""
+	if len(entries) > 0 {
+		note = fmt.Sprintf("%d", minInt(len(entries), rows))
+	}
+	var body []string
+	if len(entries) == 0 {
+		body = append(body, " "+ui.MutedText.Render(ui.Truncate("Nothing yet — downloads from this computer show up here.", inner-1)))
+	}
+	for i := 0; i < rows && i < len(entries); i++ {
+		body = append(body, " "+m.recentLine(entries[i], now, inner-1))
+	}
+	for len(body) < rows {
+		body = append(body, "")
+	}
+	return panelNote("Recent", note, strings.Join(body, "\n"), inner+4)
 }
 
 func joinDot(parts ...string) string {

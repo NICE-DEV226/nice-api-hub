@@ -34,10 +34,29 @@ func maxInt(a, b int) int {
 
 // panel draws a titled rounded box of the given outer width.
 func panel(title, body string, width int) string {
+	return panelNote(title, "", body, width)
+}
+
+// panelNote is panel with a muted note right-aligned in the header row (lazygit-style panel hints).
+func panelNote(title, note, body string, width int) string {
 	if width < 12 {
 		width = 12
 	}
 	head := ui.Title.Render(title)
+	if note != "" {
+		// the Panel style adds a border and one cell of padding each side: usable text width is width-6
+		inner := maxInt(4, width-6)
+		avail := inner - lipgloss.Width(head) - 1
+		if avail < 4 {
+			avail = 4
+		}
+		noteR := ui.MutedText.Render(ui.Truncate(note, avail))
+		gap := inner - lipgloss.Width(head) - lipgloss.Width(noteR)
+		if gap < 1 {
+			gap = 1
+		}
+		head += strings.Repeat(" ", gap) + noteR
+	}
 	return ui.Panel.Width(width - 2).Render(head + "\n" + body)
 }
 

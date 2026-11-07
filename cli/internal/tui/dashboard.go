@@ -133,15 +133,19 @@ func (m *dashboard) View() string {
 
 	gw := m.gatewayPanel()
 	pl := m.platformsPanel()
+	statusNote := ui.Dot(m.ready.Status)
 	if m.w >= 100 && m.d.HasAPI {
 		leftW := (m.w - 3) * 5 / 11
-		left := lipgloss.JoinVertical(lipgloss.Left, panel("Gateway", gw, leftW), panel("Platforms", pl, leftW))
-		right := panel("Your account", m.accountPanel(), m.w-leftW-3)
+		left := lipgloss.JoinVertical(lipgloss.Left,
+			panelNote("Gateway", statusNote, gw, leftW), "",
+			panelNote("Platforms", platformNote(m.plats), pl, leftW))
+		right := panelNote("Your account", accountNote(m.acc), m.accountPanel(), m.w-leftW-3)
 		return lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
 	}
-	parts := []string{panel("Gateway", gw, m.w-2), panel("Platforms", pl, m.w-2)}
+	parts := []string{panelNote("Gateway", statusNote, gw, m.w-2), "",
+		panelNote("Platforms", platformNote(m.plats), pl, m.w-2)}
 	if m.d.HasAPI {
-		parts = append(parts, panel("Your account", m.accountPanel(), m.w-2))
+		parts = append(parts, "", panelNote("Your account", accountNote(m.acc), m.accountPanel(), m.w-2))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
@@ -169,18 +173,32 @@ func (m *dashboard) platformsPanel() string {
 	if len(m.plats) == 0 {
 		return ui.MutedText.Render("No platform available.")
 	}
-	counts := map[string]int{}
 	var b strings.Builder
 	for i, p := range m.plats {
-		counts[p.Status]++
 		if i > 0 {
 			b.WriteByte('\n')
 		}
 		b.WriteString(fmt.Sprintf("%-14s %s", p.Name, ui.Dot(p.Status)))
 	}
-	b.WriteString("\n\n" + ui.MutedText.Render(fmt.Sprintf("%d operational · %d degraded · %d down · %d unknown",
-		counts["operational"], counts["degraded"], counts["down"], counts["unknown"])))
 	return b.String()
+}
+
+// platformNote summarizes platform health for the panel header.
+func platformNote(plats []api.PlatformStatus) string {
+	counts := map[string]int{}
+	for _, p := range plats {
+		counts[p.Status]++
+	}
+	return fmt.Sprintf("%d operational · %d degraded · %d down",
+		counts["operational"], counts["degraded"], counts["down"])
+}
+
+// accountNote surfaces the plan in the panel header.
+func accountNote(acc *api.AccountInfo) string {
+	if acc == nil {
+		return ""
+	}
+	return strings.ToUpper(acc.Plan)
 }
 
 func (m *dashboard) accountPanel() string {
@@ -207,19 +225,24 @@ func (m *dashboard) accountPanel() string {
 		limit = fmt.Sprintf("%d / %d today", req, *q)
 		bar = ui.Bar(req, *q, 28)
 	}
+	errVal := fmt.Sprint(errs)
+	if errs > 0 {
+		errVal = ui.Danger.Render(errVal)
+	}
 	lines := []string{
 		ui.Bold.Render(m.acc.Name) + "  " + ui.Badge.Render(m.acc.Plan),
 		ui.MutedText.Render(limitsLine(m.usage.Limits)),
 		"",
 		bar + " " + limit,
 		"",
-		ui.KV([2]string{"requests", fmt.Sprint(req)}, [2]string{"cache hits", fmt.Sprint(cached)}, [2]string{"errors", fmt.Sprint(errs)}),
+		ui.Aligned([2]string{"requests", fmt.Sprint(req)}, [2]string{"cache hits", fmt.Sprint(cached)}, [2]string{"errors", errVal}),
 	}
 	if len(per) > 0 {
-		lines = append(lines, "", ui.MutedText.Render("by platform"))
+		pairs := make([][2]string, 0, len(per))
 		for _, p := range sortedKeys(per) {
-			lines = append(lines, fmt.Sprintf("  %-12s %d", p, per[p]))
+			pairs = append(pairs, [2]string{p, fmt.Sprint(per[p])})
 		}
+		lines = append(lines, "", ui.MutedText.Render("by platform"), indent(ui.Aligned(pairs...), "  "))
 	}
 	return strings.Join(lines, "\n")
 }

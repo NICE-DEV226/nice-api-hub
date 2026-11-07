@@ -139,5 +139,3 @@ func TestMouseWheelMovesTheSelection(t *testing.T) {
 		t.Fatalf("cursor %d", pg.tbl.Cursor())
 	}
 }
-
-

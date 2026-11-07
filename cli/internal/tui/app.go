@@ -353,4 +353,3 @@ func (a *App) View() string {
 	}
 	return a.header() + "\n\n" + body + "\n" + a.footer()
 }
-

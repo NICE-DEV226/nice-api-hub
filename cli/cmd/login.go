@@ -88,7 +88,7 @@ func (a *app) loginCmd() *cobra.Command {
 				return usageErr(err)
 			}
 			if a.env.HTTPClient != nil {
-				c.HTTP = a.env.HTTPClient
+				c.SetHTTPClient(a.env.HTTPClient)
 			}
 			ctx, cancel := a.ctx(cmd)
 			defer cancel()

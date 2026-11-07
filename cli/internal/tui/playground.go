@@ -788,7 +788,21 @@ func (m *playground) playlistScreen() string {
 }
 
 func (m *playground) playlistDownloadScreen() []string {
-	lines := []string{ui.Bold.Render(ui.Deref(m.playlist.Title, "Playlist")), ui.MutedText.Render(m.playlistSummary()), ""}
+	done := 0
+	for _, status := range m.playlistStatus {
+		if status == "done" {
+			done++
+		}
+	}
+	total := len(m.playlist.Entries)
+	bar := ui.Bar(int64(done), int64(total), minInt(40, maxInt(10, m.w-14)))
+	lines := []string{
+		ui.Bold.Render(ui.Deref(m.playlist.Title, "Playlist")),
+		ui.MutedText.Render(m.playlistSummary()),
+		"",
+		bar + " " + ui.MutedText.Render(fmt.Sprintf("%d/%d", done, total)),
+		"",
+	}
 	for i, entry := range m.playlist.Entries {
 		status := m.playlistStatus[i]
 		if status == "" {
@@ -907,14 +921,20 @@ func (m *playground) downloadLines() []string {
 	name = ui.Truncate(name, maxInt(20, m.w-8))
 	rate := ""
 	if m.dl.speed.bps > 0 {
-		rate = "  " + ui.Bytes(int64(m.dl.speed.bps)) + "/s"
+		rate = ui.Bytes(int64(m.dl.speed.bps)) + "/s"
+	}
+	elapsed := ""
+	if !m.dl.started.IsZero() {
+		elapsed = ui.Duration(m.d.Now().Sub(m.dl.started).Seconds())
 	}
 	where := ui.MutedText.Render("to " + m.shortDir(maxInt(12, m.w-10)))
 	if m.dl.total > 0 {
 		pct := float64(m.dl.done) / float64(m.dl.total)
-		return []string{ui.Bold.Render(name), where, "", fmt.Sprintf("%s %3.0f%%", m.bar.ViewAs(pct), pct*100), ui.MutedText.Render(fmt.Sprintf("%s / %s%s", ui.Bytes(m.dl.done), ui.Bytes(m.dl.total), rate)), "", ui.MutedText.Render("esc to cancel")}
+		meta := joinDot(fmt.Sprintf("%s / %s", ui.Bytes(m.dl.done), ui.Bytes(m.dl.total)), rate, elapsed)
+		return []string{ui.Bold.Render(name), where, "", fmt.Sprintf("%s %3.0f%%", m.bar.ViewAs(pct), pct*100), ui.MutedText.Render(meta), "", ui.MutedText.Render("esc to cancel")}
 	}
-	return []string{ui.Bold.Render(name), where, "", fmt.Sprintf("%s %s streamed%s", m.sp.View(), ui.Bytes(m.dl.done), rate), ui.MutedText.Render("merged on the fly, size unknown"), "", ui.MutedText.Render("esc to cancel")}
+	meta := joinDot(rate, elapsed)
+	return []string{ui.Bold.Render(name), where, "", fmt.Sprintf("%s %s streamed", m.sp.View(), ui.Bytes(m.dl.done)), ui.MutedText.Render(joinDot("merged on the fly, size unknown", meta)), "", ui.MutedText.Render("esc to cancel")}
 }
 
 // Mouse: click the folder line to choose where to save, a row to select it, a button to act, the wheel to scroll.

@@ -384,9 +384,7 @@ func (v *devicesView) View() string {
 			ui.Danger.Render("Copy it now: it cannot be shown again.")+"\n"+
 			ui.MutedText.Render("c copy to clipboard · esc close")))
 	case modeConfirm:
-		return overlay(v.w, v.h, ui.PanelHot.Render(ui.Warning.Render("Confirm")+"\n\n"+
-			wrap(v.confirm.prompt, 52)+"\n\n"+
-			ui.MutedText.Render("y yes · any other key cancels")))
+		return confirmOverlay(v.confirm.prompt, v.w, v.h)
 	}
 
 	if v.toast.visible(v.d.Now()) {

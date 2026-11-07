@@ -329,7 +329,7 @@ func (v *historyView) View() string {
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
 
 	if v.confirm.active {
-		return overlay(v.w, v.h, ui.PanelHot.Render(ui.Warning.Render("Confirm")+"\n\n"+wrap(v.confirm.prompt, 52)+"\n\n"+ui.MutedText.Render("y yes · any other key cancels")))
+		return confirmOverlay(v.confirm.prompt, v.w, v.h)
 	}
 
 	if v.toast.visible(v.d.Now()) {

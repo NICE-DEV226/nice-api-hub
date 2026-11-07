@@ -20,8 +20,10 @@ import (
 
 // Deps is everything the interface needs from the outside.
 type Deps struct {
-	Client      *api.Client
-	Profile     string
+	Client  *api.Client
+	Profile string
+	// Version is the running build's version, shown in the header ("" hides it).
+	Version     string
 	HasAPI      bool // an API key is configured: dashboard account panel and the playground work
 	HasAdmin    bool // an admin token is configured: the operator can still set this computer up
 	Now         func() time.Time

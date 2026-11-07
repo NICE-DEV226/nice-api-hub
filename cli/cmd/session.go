@@ -119,6 +119,7 @@ func (a *app) tuiDeps(dir string) (tui.Deps, error) {
 		Client:      c,
 		Thumb:       thumbFetcher(c),
 		Profile:     a.res.Profile,
+		Version:     a.env.Version,
 		HasAPI:      a.res.APIKey != "",
 		HasAdmin:    a.res.AdminToken != "",
 		Now:         a.env.Now,

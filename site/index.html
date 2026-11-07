@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nah — the media downloader that lives in your terminal</title>
+<meta name="description" content="nah turns links from YouTube, TikTok, X, Instagram, Facebook, SoundCloud and more into files on your disk. A terminal app with a full-screen UI and scriptable commands.">
+<meta name="theme-color" content="#0d1117">
+<meta property="og:title" content="nah — paste a link, get the file">
+<meta property="og:description" content="A media downloader that lives in your terminal. Full-screen TUI, scriptable commands, resumable playlists, self-updating binary.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%230D1117'/><text x='2.5' y='12' font-family='monospace' font-size='11' fill='%2358A6FF'>n</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<noscript><style>.term-result{opacity:1;transform:none}.term-saved{display:block;color:var(--good)}</style></noscript>
+</head>
+<body>
+
+<header class="nav">
+  <a class="brand" href="#">nah<span class="cursor" aria-hidden="true"></span></a>
+  <nav>
+    <a href="#how">how it works</a>
+    <a href="#commands">commands</a>
+    <a href="https://github.com/NICE-DEV226/nice-api-hub#readme">docs</a>
+    <a class="nav-cta" href="https://github.com/NICE-DEV226/nice-api-hub">github&nbsp;↗</a>
+  </nav>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-copy">
+      <h1>Paste a link.<br>Get the file.</h1>
+      <p class="lede">
+        nah turns links from YouTube, TikTok, X, Instagram, Facebook,
+        SoundCloud and a dozen other sites into files on your disk —
+        from your terminal, over SSH, or inside a script.
+      </p>
+      <div class="install">
+        <div class="install-tabs" role="tablist">
+          <button class="os-tab on" data-os="unix" type="button">Linux · macOS</button>
+          <button class="os-tab" data-os="win" type="button">Windows</button>
+        </div>
+        <div class="install-line">
+          <span class="prompt" id="install-prompt">$</span>
+          <code id="install-cmd">curl -fsSL https://github.com/NICE-DEV226/nice-api-hub/releases/latest/download/install.sh | sh</code>
+          <button class="copy" id="copy-btn" type="button" aria-label="Copy install command">copy</button>
+        </div>
+        <p class="install-note">no admin rights · checksum-verified · <code>nah update</code> keeps it current</p>
+      </div>
+      <ul class="hero-facts">
+        <li>one static binary</li>
+        <li>zero runtime deps</li>
+        <li>runs over SSH</li>
+      </ul>
+    </div>
+
+    <div class="terminal" aria-hidden="true">
+      <div class="term-body">
+        <div class="term-tabs"><span class="tab on">Download</span><span class="tab">History</span><span class="tab">Devices</span></div>
+        <div class="term-input"><span class="prompt">▸</span><span id="typed"></span><span class="caret" id="caret"></span></div>
+        <div class="term-result" id="term-result">
+          <div class="res-title">Big Buck Bunny</div>
+          <div class="res-meta">Blender Foundation · 10 min · youtube</div>
+          <div class="res-opt sel"><span class="radio">●</span> Best quality <span class="opt-detail">1080p · 233.7 MB</span></div>
+          <div class="res-opt"><span class="radio">○</span> 720p <span class="opt-detail">96.4 MB</span></div>
+          <div class="res-opt"><span class="radio">○</span> Audio only · MP3 <span class="opt-detail">4.1 MB</span></div>
+          <div class="res-keys"><b>d</b> download&nbsp;&nbsp;<b>o</b> open&nbsp;&nbsp;<b>esc</b> back</div>
+        </div>
+        <div class="term-dl" id="term-dl">
+          <div class="dl-name">Big Buck Bunny.mp4</div>
+          <div class="dl-bar"><div class="dl-fill" id="dl-fill"></div></div>
+          <div class="dl-meta"><span id="dl-pct">0%</span><span id="dl-speed">—</span></div>
+        </div>
+        <div class="term-saved" id="term-saved">✓ saved to ~/Downloads/Big Buck Bunny.mp4</div>
+      </div>
+      <div class="term-status"><span class="dot"></span>gateway connected · nah</div>
+    </div>
+  </section>
+
+  <section class="platforms">
+    <p class="section-label">Works with</p>
+    <ul class="chips">
+      <li>YouTube</li><li>TikTok</li><li>X</li><li>Instagram</li><li>Facebook</li>
+      <li>SoundCloud</li><li>Bluesky</li><li>Dailymotion</li><li>LinkedIn</li><li>Pinterest</li>
+    </ul>
+    <p class="chips-note">and anything yt-dlp supports — nah uses a provider chain with automatic failover</p>
+  </section>
+
+  <section class="how" id="how">
+    <p class="section-label">How it works</p>
+    <div class="how-grid">
+      <div class="how-step">
+        <span class="how-n">01</span>
+        <h2>Paste the link</h2>
+        <p>In the app or on the command line. nah asks the API what the link resolves to — title, duration, every quality available.</p>
+      </div>
+      <div class="how-step">
+        <span class="how-n">02</span>
+        <h2>Providers race</h2>
+        <p>The API tries fast dedicated providers first, falls back to yt-dlp, caches the result. Dead content is reported honestly, upstream faults trigger failover.</p>
+      </div>
+      <div class="how-step">
+        <span class="how-n">03</span>
+        <h2>File lands</h2>
+        <p>Streamed in ranged chunks, merged with ffmpeg when needed, saved with a unique name — never overwriting what you have.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="commands" id="commands">
+    <p class="section-label">Scriptable</p>
+    <p class="section-lede">No terminal UI? Every action is also a one-line command, so nah drops into cron jobs, SSH sessions and CI.</p>
+    <div class="cmd-grid">
+      <div class="cmd"><code>nah</code><span>the full-screen app</span></div>
+      <div class="cmd"><code>nah download &lt;url&gt;</code><span>fetch one file</span></div>
+      <div class="cmd"><code>nah history</code><span>what you got</span></div>
+      <div class="cmd"><code>nah again</code><span>redo the last one</span></div>
+      <div class="cmd"><code>nah keys</code><span>manage API keys</span></div>
+      <div class="cmd"><code>nah update</code><span>self-update, verified</span></div>
+    </div>
+  </section>
+
+  <section class="inside">
+    <p class="section-label">Inside the app</p>
+    <p class="section-lede">A full-screen Bubble Tea interface — tabs, mouse support, previews. Every key is on screen; press <code>?</code> anywhere for help.</p>
+    <div class="app-mock" aria-hidden="true">
+      <div class="app-tabs"><span class="tab on">Dashboard</span><span class="tab">Download</span><span class="tab">History</span><span class="tab">Devices</span></div>
+      <div class="app-panels">
+        <div class="app-panel">
+          <div class="ap-title">Gateway</div>
+          <div class="ap-row"><span class="ok">●</span> postgres <span class="ap-right">ready</span></div>
+          <div class="ap-row"><span class="ok">●</span> redis <span class="ap-right">ready</span></div>
+          <div class="ap-row"><span class="warn">●</span> youtube <span class="ap-right">degraded</span></div>
+        </div>
+        <div class="app-panel">
+          <div class="ap-title">Plan · pro</div>
+          <div class="ap-row">usage today <span class="ap-right">250 / 10 000</span></div>
+          <div class="ap-bar"><div class="ap-fill" style="width:2.5%"></div></div>
+          <div class="ap-row"><span class="muted">tiktok</span> <span class="ap-right">—</span></div>
+          <div class="ap-row"><span class="muted">soundcloud</span> <span class="ap-right">41</span></div>
+        </div>
+      </div>
+      <div class="app-keys"><b>tab</b> switch&nbsp;&nbsp;<b>r</b> refresh&nbsp;&nbsp;<b>?</b> help&nbsp;&nbsp;<b>q</b> quit</div>
+    </div>
+  </section>
+
+  <section class="compare">
+    <p class="section-label">Why nah</p>
+    <div class="cmp-grid">
+      <div class="cmp-col cmp-head"><span></span><span class="cmp-name">nah</span><span>yt-dlp alone</span><span>browser extension</span></div>
+      <div class="cmp-row"><span class="cmp-what">interface</span><span class="cmp-cell yes">full-screen TUI + commands</span><span class="cmp-cell">CLI flags</span><span class="cmp-cell">right-click menu</span></div>
+      <div class="cmp-row"><span class="cmp-what">playlists</span><span class="cmp-cell yes">resumable checkpoints</span><span class="cmp-cell">script it yourself</span><span class="cmp-cell">one by one</span></div>
+      <div class="cmp-row"><span class="cmp-what">provider failover</span><span class="cmp-cell yes">automatic, cached</span><span class="cmp-cell">extractor roulette</span><span class="cmp-cell">whatever the site allows</span></div>
+      <div class="cmp-row"><span class="cmp-what">updates</span><span class="cmp-cell yes"><code>nah update</code>, checksum-verified</span><span class="cmp-cell">pip / git pull</span><span class="cmp-cell">auto, opaque</span></div>
+      <div class="cmp-row"><span class="cmp-what">works over SSH</span><span class="cmp-cell yes">yes — it is a binary</span><span class="cmp-cell">yes</span><span class="cmp-cell no">no</span></div>
+      <div class="cmp-row"><span class="cmp-what">account &amp; keys</span><span class="cmp-cell yes">OS keychain, per-device keys</span><span class="cmp-cell">—</span><span class="cmp-cell">vendor account</span></div>
+    </div>
+    <p class="chips-note">yt-dlp is still under the hood — nah adds the interface, the pipeline and the discipline around it.</p>
+  </section>
+
+  <section class="features">
+    <p class="section-label">Built for real use</p>
+    <div class="feat-grid">
+      <article class="feat">
+        <h2>Resumable playlists</h2>
+        <p>Whole playlists download item by item with an on-disk checkpoint. Close the laptop, come back, resume where it stopped.</p>
+      </article>
+      <article class="feat">
+        <h2>Self-updating</h2>
+        <p><code>nah update</code> fetches the release archive, checks it against <code>SHA256SUMS</code> and refuses on mismatch.</p>
+      </article>
+      <article class="feat">
+        <h2>Secrets in the keychain</h2>
+        <p>API keys live in your OS keychain — never in a dotfile. Falls back to a <code>0600</code> file where no keychain exists.</p>
+      </article>
+      <article class="feat">
+        <h2>Honest about limits</h2>
+        <p>The README lists what is not verified yet — macOS/Windows by hand, datacenter IPs on YouTube. No marketing fog.</p>
+      </article>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-grid">
+    <div>
+      <p class="foot-brand">nah<span class="cursor" aria-hidden="true"></span></p>
+      <p class="foot-dim">part of nice-api-hub</p>
+    </div>
+    <nav class="foot-links">
+      <a href="https://github.com/NICE-DEV226/nice-api-hub">github</a>
+      <a href="https://github.com/NICE-DEV226/nice-api-hub/releases">releases</a>
+      <a href="https://github.com/NICE-DEV226/nice-api-hub#readme">readme</a>
+      <a href="https://github.com/NICE-DEV226/nice-api-hub/blob/main/api/README.md">api docs</a>
+    </nav>
+  </div>
+  <p class="foot-note">Fastify · PostgreSQL · Redis · yt-dlp · ffmpeg · Bubble Tea — alpha software, expect rough edges.</p>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>

@@ -355,19 +355,34 @@ func (v *devicesView) View() string {
 		return "Loading devices & keys…"
 	}
 
-	leftW := maxInt(38, v.w*3/5)
-	v.leftW = leftW
-	rightW := v.w - leftW - 1
-
 	headerTitle := fmt.Sprintf("Devices & Keys (%d)", len(v.keys))
+
+	narrow := v.w < detailMinWidth
+	listH := 0
+	if narrow {
+		// narrow terminal: stack the list over the details instead of crushing the detail pane
+		listH = maxInt(8, v.h*3/5)
+		v.table.SetSize(v.w-2, maxInt(4, listH-2))
+	}
+
 	leftContent := v.table.View()
 	if len(v.keys) == 0 {
 		leftContent = ui.MutedText.Render("No keys found for this account.\nPress n to create one.")
 	}
 
-	left := panelFocus(headerTitle, leftContent, leftW, v.h-2, true)
-	right := v.detailView(rightW)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+	var body string
+	if narrow {
+		left := panelFocus(headerTitle, leftContent, v.w, listH, true)
+		right := v.detailView(v.w, v.h-listH-1)
+		body = lipgloss.JoinVertical(lipgloss.Left, left, "", right)
+	} else {
+		leftW := maxInt(38, v.w*3/5)
+		v.leftW = leftW
+		rightW := v.w - leftW - 1
+		left := panelFocus(headerTitle, leftContent, leftW, v.h-2, true)
+		right := v.detailView(rightW, v.h-2)
+		body = lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+	}
 
 	switch v.mode {
 	case modeNewKey:
@@ -399,10 +414,10 @@ func (v *devicesView) View() string {
 	return body
 }
 
-func (v *devicesView) detailView(w int) string {
+func (v *devicesView) detailView(w, h int) string {
 	sel := v.selected()
 	if sel == nil {
-		return panelFocus("Details", ui.MutedText.Render("Select a key to view details.\nPress n to create a new key."), w, v.h-2, false)
+		return panelFocus("Details", ui.MutedText.Render("Select a key to view details.\nPress n to create a new key."), w, h, false)
 	}
 
 	now := v.d.Now()
@@ -452,5 +467,5 @@ func (v *devicesView) detailView(w int) string {
 	}
 
 	sb.WriteString("\n" + ui.MutedText.Render("n new key · r revoke · R rotate · y copy ID"))
-	return panelFocus("Details", sb.String(), w, v.h-2, false)
+	return panelFocus("Details", sb.String(), w, h, false)
 }

@@ -60,6 +60,10 @@ func panelNote(title, note, body string, width int) string {
 	return ui.Panel.Width(width - 2).Render(head + "\n" + body)
 }
 
+// detailMinWidth is the narrowest terminal where the master-detail split still leaves a usable
+// detail pane; below it list views stack the detail under the list.
+const detailMinWidth = 96
+
 // panelFocus is panel with the highlight border while the pane has the keyboard focus.
 func panelFocus(title, body string, width, height int, focused bool) string {
 	style := ui.Panel

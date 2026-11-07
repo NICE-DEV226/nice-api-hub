@@ -90,8 +90,8 @@ No terminal UI? `nah register`, `nah link`, `nah recover` and `nah login` do the
 
 ## The interface
 
-Open it with `nah` (or `nah tui`). Tabs depend on what this computer can do: **Dashboard** always; **Accounts** with the
-admin token; **Download** with an API key. It opens on Download: a big input in the middle of the screen (like a search page)
+Open it with `nah` (or `nah tui`). Tabs depend on what this computer can do: **Dashboard** always; **Download**,
+**History** and **Devices** with an API key. It opens on Download: a big input in the middle of the screen (like a search page)
 where you paste a link. Content stays in a readable centred column, even on a very wide terminal.
 
 <p align="center"><img src="../docs/nah-home.png" alt="The home screen: paste a link" width="760"></p>
@@ -111,9 +111,9 @@ mouse to the app otherwise).
 | `o` on a result | Open the original page in the browser |
 | `Tab` (or `f` on a result) | Choose the folder to save into (also asked automatically when a download starts) |
 | **Dashboard** `r` | Refresh (it also refreshes every 15 s) |
-| **Accounts** `↑` `↓` `Tab` | Move · switch between accounts and keys |
-| `n` · `c` · `x` · `s` · `r` | New account · new key · revoke key · suspend/activate · refresh |
-| **Operator without a personal account** `s` | Set this computer up as a user too |
+| **History** `↑` `↓` · `c` · `o` · `x` · `C` · `/` | Select · copy URL · open · delete · clear · filter |
+| **Devices** `↑` `↓` · `n` · `r` · `R` · `y` | Select · new key · revoke · rotate · copy ID |
+| **Operator without a personal account** `s` | Set this computer up as a user too. Operator tasks (accounts, plans, keys) stay available as `nah admin …` commands |
 
 **Round corners.** A terminal cell is a rectangle, so a truly round corner needs a special glyph. With a Nerd Font, press
 **`Ctrl+R`**: the input bar, buttons and chips become real pills with half-circle ends (press it again to go back; the choice is
@@ -170,7 +170,7 @@ One rule does most of the work: **the first row is always "Save in this folder"*
 A folder you cannot write to is refused with the reason, instead of failing later during a download. Folder names you create are
 made safe for every operating system, like downloaded file names.
 
-Not in the interface yet: History, Devices and Settings tabs. Use `nah history`, `nah again` and `nah keys` meanwhile.
+Not in the interface yet: a Settings tab. Use `nah config`, `nah keys` and `nah history` meanwhile.
 
 ## Commands
 

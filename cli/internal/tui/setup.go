@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -585,7 +586,7 @@ func (m *setupView) render(logo bool) (string, bool) {
 			if i == m.cursor {
 				marker, style = ui.Title.Render("▸ "), lipgloss.NewStyle().Bold(true)
 			}
-			b.WriteString(marker + style.Render(itoa(i+1)+". "+it.title) + "\n")
+			b.WriteString(marker + style.Render(strconv.Itoa(i+1)+". "+it.title) + "\n")
 			b.WriteString("     " + ui.MutedText.Render(ui.Truncate(it.sub, inner-5)) + "\n\n")
 		}
 		if m.err != nil {

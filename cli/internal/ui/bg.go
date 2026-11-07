@@ -10,8 +10,8 @@ import (
 
 var sgrSeq = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-// BGSeq returns the escape sequence that sets bg as the background, or "" when the terminal has no colour.
-func BGSeq(bg lipgloss.AdaptiveColor) string {
+// bgSeq returns the escape sequence that sets bg as the background, or "" when the terminal has no colour.
+func bgSeq(bg lipgloss.AdaptiveColor) string {
 	hex := bg.Light
 	if lipgloss.HasDarkBackground() {
 		hex = bg.Dark
@@ -29,7 +29,7 @@ func BGSeq(bg lipgloss.AdaptiveColor) string {
 // segment, which punches holes of the terminal's own colour into a filled area. Text that already has a background,
 // or is drawn in reverse video (a cursor), is left alone.
 func EnsureBG(s string, bg lipgloss.AdaptiveColor) string {
-	seq := BGSeq(bg)
+	seq := bgSeq(bg)
 	if seq == "" {
 		return s
 	}

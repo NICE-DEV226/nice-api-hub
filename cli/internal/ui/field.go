@@ -5,11 +5,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Fill of an input field, a step away from the terminal background; a little lighter while it has focus.
-var (
-	FieldBG      = lipgloss.AdaptiveColor{Light: "#EAEEF2", Dark: "#2B313A"}
-	FieldBGFocus = lipgloss.AdaptiveColor{Light: "#DDE3EA", Dark: "#363E4A"}
-)
+// FieldBG and FieldBGFocus (the field fill, a little lighter while it has focus) live with the palette in style.go.
 
 func fieldFill(focused bool) lipgloss.AdaptiveColor {
 	if focused {

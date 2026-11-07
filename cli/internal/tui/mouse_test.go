@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -33,7 +32,7 @@ func sized(t *testing.T, w, h int, hasAPI, hasAdmin bool) *App {
 
 func TestClickingATabSwitchesToIt(t *testing.T) {
 	a := sized(t, 130, 40, true, true)
-	if len(a.tabSpans) != 5 {
+	if len(a.tabSpans) != 4 {
 		t.Fatalf("spans: %v", a.tabSpans)
 	}
 	for want := range a.tabs {
@@ -138,34 +137,5 @@ func TestMouseWheelMovesTheSelection(t *testing.T) {
 	a.Update(wheel(a.bodyLeft()+10, a.bodyTop+pg.gridY+3, true))
 	if pg.tbl.Cursor() != 1 {
 		t.Fatalf("cursor %d", pg.tbl.Cursor())
-	}
-}
-
-func TestClickingAnAccountSelectsItAndFetchesItsKeys(t *testing.T) {
-	g := newFakeGateway(t)
-	a := NewApp(testDeps(t, g, false, true))
-	a.Update(tea.WindowSizeMsg{Width: 130, Height: 40})
-	a.switchTo(1)
-	acc := a.current().(*accountsView)
-	acc.loaded = true
-	acc.accs = []api.Account{{ID: acct1, Name: "Acme Corp", PlanID: "pro", Status: "active"}, {ID: acct2, Name: "Other", PlanID: "free", Status: "active"}}
-	acc.rebuildAccountRows(acct1)
-	a.View()
-	_, cmd := a.Update(click(a.bodyLeft()+6, a.bodyTop+2+gridHeaderLines+1)) // second account
-	if acc.selected() == nil || acc.selected().ID != acct2 {
-		t.Fatalf("selected %+v", acc.selected())
-	}
-	if cmd == nil {
-		t.Fatal("selecting another account must load its keys")
-	}
-	if acc.pane != 0 {
-		t.Fatal("a click on the left panel focuses it")
-	}
-	a.Update(click(a.bodyLeft()+a.bodyWidth()-10, a.bodyTop+4))
-	if acc.pane != 1 {
-		t.Fatal("a click on the right panel focuses it")
-	}
-	if !strings.Contains(a.View(), "Other") {
-		t.Fatal("render")
 	}
 }

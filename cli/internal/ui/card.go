@@ -7,12 +7,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Colours of a card (a dialog): a filled panel a step lighter than the terminal, and the chips that sit on it.
-var (
-	CardBG = lipgloss.AdaptiveColor{Light: "#F1F4F7", Dark: "#262C34"}
-	ChipBG = lipgloss.AdaptiveColor{Light: "#DCE2E8", Dark: "#3A424E"}
-)
-
 // CardRow pads text to inner cells on the card background, padX cells of margin on the left. Text that is too long is
 // clipped, and any character that has no background gets the card's.
 func CardRow(text string, inner, padX int) string {

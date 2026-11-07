@@ -31,20 +31,13 @@ func wrapPill(inner string, bg, under lipgloss.TerminalColor) string {
 	return pad + inner + pad
 }
 
-// Pill renders text on a filled background, rounded at both ends when RoundCaps is on.
-func Pill(text string, bg, fg lipgloss.TerminalColor) string { return PillOn(text, bg, fg, nil) }
-
-// PillOn is Pill sitting on a coloured surface.
+// PillOn renders text on a filled background, rounded at both ends when RoundCaps is on.
+// under is the colour behind the pill (a card's fill), or nil for the plain terminal.
 func PillOn(text string, bg, fg, under lipgloss.TerminalColor) string {
 	return wrapPill(lipgloss.NewStyle().Foreground(fg).Background(bg).Render(text), bg, under)
 }
 
-// PillBold is Pill with bold text.
-func PillBold(text string, bg, fg lipgloss.TerminalColor) string {
-	return PillBoldOn(text, bg, fg, nil)
-}
-
-// PillBoldOn is PillBold sitting on a coloured surface.
+// PillBoldOn is PillOn with bold text.
 func PillBoldOn(text string, bg, fg, under lipgloss.TerminalColor) string {
 	return wrapPill(lipgloss.NewStyle().Bold(true).Foreground(fg).Background(bg).Render(text), bg, under)
 }

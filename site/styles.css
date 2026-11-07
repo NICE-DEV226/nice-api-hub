@@ -150,6 +150,16 @@ code {
 
 .install-note { margin-top: .6rem; color: var(--subtle); font-size: .8rem; }
 
+.hero-facts {
+  list-style: none;
+  display: flex;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+  color: var(--subtle);
+  font-size: .8rem;
+}
+.hero-facts li::before { content: "· "; color: var(--accent); }
+
 /* ---------- terminal mockup ---------- */
 
 .terminal {
@@ -229,6 +239,59 @@ code {
   font-size: .78rem;
 }
 .res-keys b { color: var(--text); font-weight: 500; }
+
+/* download sequence inside the mockup */
+
+.term-dl, .term-saved {
+  margin-top: .9rem;
+  display: none;
+}
+.term-dl.show, .term-saved.show { display: block; }
+
+.dl-name { color: var(--text); margin-bottom: .45rem; }
+
+.dl-bar {
+  height: 6px;
+  background: var(--border-soft);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.dl-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width .15s linear;
+}
+
+.dl-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: .35rem;
+  color: var(--subtle);
+  font-size: .76rem;
+}
+
+.term-saved {
+  color: var(--good);
+  font-size: .8rem;
+}
+
+.term-status {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .55rem 1.1rem;
+  border-top: 1px solid var(--border-soft);
+  color: var(--subtle);
+  font-size: .74rem;
+}
+.term-status .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--good);
+}
 
 /* ---------- sections ---------- */
 
@@ -316,7 +379,33 @@ main > section {
 }
 .feat p { color: var(--muted); font-size: .88rem; }
 
-/* ---------- footer ---------- */
+/* how it works */
+
+.how-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1.5rem;
+}
+
+.how-step { border-top: 1px solid var(--border); padding-top: 1rem; }
+.how-n { color: var(--accent); font-size: .8rem; }
+.how-step h2 { font-size: .95rem; font-weight: 700; margin: .3rem 0 .4rem; }
+.how-step p { color: var(--muted); font-size: .88rem; }
+
+/* footer */
+
+.foot-grid {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.foot-brand { font-weight: 700; font-size: 1rem; }
+.foot-links { display: flex; gap: 1.25rem; }
+.foot-links a { color: var(--muted); font-size: .85rem; }
+.foot-links a:hover { color: var(--text); }
 
 .foot {
   max-width: 72rem;
@@ -327,6 +416,7 @@ main > section {
   font-size: .85rem;
 }
 .foot-dim { margin-top: .4rem; color: var(--subtle); font-size: .78rem; }
+.foot-note { margin-top: 1.5rem; color: var(--subtle); font-size: .78rem; }
 
 /* ---------- responsive ---------- */
 

@@ -1,9 +1,15 @@
-// nah landing page — one orchestrated moment: the terminal types a URL,
-// then the result card appears. Everything else is static.
+// nah landing page — one orchestrated load sequence:
+// type the URL → result card → simulated `d` download → saved.
+// Everything else is static.
 
 const typed = document.getElementById("typed");
 const caret = document.getElementById("caret");
 const result = document.getElementById("term-result");
+const dlBox = document.getElementById("term-dl");
+const dlFill = document.getElementById("dl-fill");
+const dlPct = document.getElementById("dl-pct");
+const dlSpeed = document.getElementById("dl-speed");
+const saved = document.getElementById("term-saved");
 const copyBtn = document.getElementById("copy-btn");
 
 const URL_TEXT = "https://www.youtube.com/watch?v=abc";
@@ -18,15 +24,43 @@ function typeUrl() {
     } else {
       caret.remove();
       setTimeout(() => result.classList.add("show"), 350);
+      setTimeout(startDownload, 1900);
     }
   };
   tick();
+}
+
+function startDownload() {
+  dlBox.classList.add("show");
+  const total = 233.7; // MB, matches the "Best quality" line
+  const duration = 2600;
+  const t0 = performance.now();
+  const frame = (now) => {
+    const p = Math.min((now - t0) / duration, 1);
+    // ease-out so it decelerates like a real transfer finishing
+    const eased = 1 - Math.pow(1 - p, 2);
+    const mb = total * eased;
+    dlFill.style.width = `${eased * 100}%`;
+    dlPct.textContent = `${Math.round(eased * 100)}%`;
+    dlSpeed.textContent = p < 1 ? `${(mb / Math.max((now - t0) / 1000, 0.3)).toFixed(1)} MB/s` : "done";
+    if (p < 1) requestAnimationFrame(frame);
+    else {
+      dlSpeed.textContent = "5.7 MB/s avg";
+      setTimeout(() => {
+        dlBox.classList.remove("show");
+        saved.classList.add("show");
+      }, 500);
+    }
+  };
+  requestAnimationFrame(frame);
 }
 
 if (reduced) {
   typed.textContent = URL_TEXT;
   caret.remove();
   result.classList.add("show");
+  saved.classList.add("show");
+  saved.textContent = "✓ saved to ~/Downloads/Big Buck Bunny.mp4";
 } else {
   setTimeout(typeUrl, 600);
 }

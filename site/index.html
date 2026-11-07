@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>nah — the media downloader that lives in your terminal</title>
 <meta name="description" content="nah turns links from YouTube, TikTok, X, Instagram, Facebook, SoundCloud and more into files on your disk. A terminal app with a full-screen UI and scriptable commands.">
+<meta name="theme-color" content="#0d1117">
+<meta property="og:title" content="nah — paste a link, get the file">
+<meta property="og:description" content="A media downloader that lives in your terminal. Full-screen TUI, scriptable commands, resumable playlists, self-updating binary.">
+<meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%230D1117'/><text x='2.5' y='12' font-family='monospace' font-size='11' fill='%2358A6FF'>n</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,8 +20,9 @@
 <header class="nav">
   <a class="brand" href="#">nah<span class="cursor" aria-hidden="true"></span></a>
   <nav>
+    <a href="#how">how it works</a>
+    <a href="#commands">commands</a>
     <a href="https://github.com/NICE-DEV226/nice-api-hub#readme">docs</a>
-    <a href="https://github.com/NICE-DEV226/nice-api-hub/releases">releases</a>
     <a class="nav-cta" href="https://github.com/NICE-DEV226/nice-api-hub">github&nbsp;↗</a>
   </nav>
 </header>
@@ -40,6 +45,11 @@
         </div>
         <p class="install-note">Linux · macOS · Windows &nbsp;—&nbsp; no admin rights, checksum-verified</p>
       </div>
+      <ul class="hero-facts">
+        <li>one static binary</li>
+        <li>zero runtime deps</li>
+        <li>runs over SSH</li>
+      </ul>
     </div>
 
     <div class="terminal" aria-hidden="true">
@@ -54,7 +64,14 @@
           <div class="res-opt"><span class="radio">○</span> Audio only · MP3 <span class="opt-detail">4.1 MB</span></div>
           <div class="res-keys"><b>d</b> download&nbsp;&nbsp;<b>o</b> open&nbsp;&nbsp;<b>esc</b> back</div>
         </div>
+        <div class="term-dl" id="term-dl">
+          <div class="dl-name">Big Buck Bunny.mp4</div>
+          <div class="dl-bar"><div class="dl-fill" id="dl-fill"></div></div>
+          <div class="dl-meta"><span id="dl-pct">0%</span><span id="dl-speed">—</span></div>
+        </div>
+        <div class="term-saved" id="term-saved">✓ saved to ~/Downloads/Big Buck Bunny.mp4</div>
       </div>
+      <div class="term-status"><span class="dot"></span>gateway connected · nah</div>
     </div>
   </section>
 
@@ -67,7 +84,28 @@
     <p class="chips-note">and anything yt-dlp supports — nah uses a provider chain with automatic failover</p>
   </section>
 
-  <section class="commands">
+  <section class="how" id="how">
+    <p class="section-label">How it works</p>
+    <div class="how-grid">
+      <div class="how-step">
+        <span class="how-n">01</span>
+        <h2>Paste the link</h2>
+        <p>In the app or on the command line. nah asks the API what the link resolves to — title, duration, every quality available.</p>
+      </div>
+      <div class="how-step">
+        <span class="how-n">02</span>
+        <h2>Providers race</h2>
+        <p>The API tries fast dedicated providers first, falls back to yt-dlp, caches the result. Dead content is reported honestly, upstream faults trigger failover.</p>
+      </div>
+      <div class="how-step">
+        <span class="how-n">03</span>
+        <h2>File lands</h2>
+        <p>Streamed in ranged chunks, merged with ffmpeg when needed, saved with a unique name — never overwriting what you have.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="commands" id="commands">
     <p class="section-label">Scriptable</p>
     <p class="section-lede">No terminal UI? Every action is also a one-line command, so nah drops into cron jobs, SSH sessions and CI.</p>
     <div class="cmd-grid">
@@ -105,8 +143,19 @@
 </main>
 
 <footer class="foot">
-  <p>nah · part of <a href="https://github.com/NICE-DEV226/nice-api-hub">nice-api-hub</a> — a Fastify API, PostgreSQL, Redis and yt-dlp behind a single Go binary.</p>
-  <p class="foot-dim">free to use · source available · alpha software, expect rough edges</p>
+  <div class="foot-grid">
+    <div>
+      <p class="foot-brand">nah<span class="cursor" aria-hidden="true"></span></p>
+      <p class="foot-dim">part of nice-api-hub</p>
+    </div>
+    <nav class="foot-links">
+      <a href="https://github.com/NICE-DEV226/nice-api-hub">github</a>
+      <a href="https://github.com/NICE-DEV226/nice-api-hub/releases">releases</a>
+      <a href="https://github.com/NICE-DEV226/nice-api-hub#readme">readme</a>
+      <a href="https://github.com/NICE-DEV226/nice-api-hub/blob/main/api/README.md">api docs</a>
+    </nav>
+  </div>
+  <p class="foot-note">Fastify · PostgreSQL · Redis · yt-dlp · ffmpeg · Bubble Tea — alpha software, expect rough edges.</p>
 </footer>
 
 <script src="main.js"></script>

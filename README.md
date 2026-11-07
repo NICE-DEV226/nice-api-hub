@@ -117,8 +117,8 @@ Things this README does **not** promise, so you are not surprised:
 
 - **Only a pre-release exists so far** (`cli/v0.1.0-rc.1`, which predates the installers). Until a final release is published, the
   installers pick the newest pre-release and say so.
-- **The interface has Dashboard, Accounts (operator) and the download screen.** Download history is available as commands
-  (`nah history`, `nah again`); History, Devices and Settings *tabs* are not in the interface yet.
+- **The interface has Dashboard, Download, History and Devices.** Operator tasks (accounts, plans, keys) are CLI commands
+  (`nah admin …`). A Settings tab is not in the interface yet.
 - **`nah` was run for real on Linux only.** The macOS and Windows builds compile and their platform code (machine id,
   keychain, file names, opening files) is unit-tested; the CI runs the tests on both systems, but nobody has used the app by hand there.
 - **The Dashboard shows every platform as "unknown"** until the API's probes are enabled (`PROBES_ENABLED=true`).

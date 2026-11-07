@@ -16,7 +16,6 @@ type tabID int
 
 const (
 	tabDashboard tabID = iota
-	tabAccounts
 	tabPlayground
 	tabHistory
 	tabDevices
@@ -78,9 +77,6 @@ func (a *App) build(d Deps) {
 	}
 	a.dash = newDashboard(d)
 	a.tabs = append(a.tabs, tabInfo{tabDashboard, "Dashboard", a.dash})
-	if d.HasAdmin {
-		a.tabs = append(a.tabs, tabInfo{tabAccounts, "Accounts", newAccounts(d)})
-	}
 	if d.HasAPI {
 		dlIdx := len(a.tabs)
 		a.tabs = append(a.tabs, tabInfo{tabPlayground, "Download", newPlayground(d)})

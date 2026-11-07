@@ -190,8 +190,8 @@ func TestTabsAdaptToCredentials(t *testing.T) {
 		t.Fatalf("API key only => Dashboard + Download + History + Devices, got %+v", only.tabs)
 	}
 	adm := NewApp(testDeps(t, g, false, true))
-	if len(adm.tabs) != 2 || adm.tabs[1].title != "Accounts" {
-		t.Fatalf("admin only => Dashboard + Accounts, got %+v", adm.tabs)
+	if len(adm.tabs) != 1 {
+		t.Fatalf("admin only => Dashboard only, got %+v", adm.tabs)
 	}
 	none := NewApp(testDeps(t, g, false, false))
 	if len(none.tabs) != 1 {
@@ -214,91 +214,6 @@ func TestTooSmallTerminal(t *testing.T) {
 	tm := start(t, testDeps(t, g, true, true), 40, 10)
 	waitFor(t, tm, "Terminal too small")
 	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
-	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
-}
-
-func TestAccountsBrowseAndKeys(t *testing.T) {
-	g := newFakeGateway(t)
-	tm := start(t, testDeps(t, g, true, true), 130, 40)
-	tm.Send(press("2"))
-	waitFor(t, tm, "Accounts (2)", "Acme Corp", "Beta Inc", "nah_live_abcd", "prod", "ops@acme.test")
-	tm.Send(press("q"))
-	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
-}
-
-func TestCreateKeyShowsTheSecretOnceAndCallsTheAPI(t *testing.T) {
-	g := newFakeGateway(t)
-	tm := start(t, testDeps(t, g, true, true), 130, 40)
-	tm.Send(press("2"))
-	waitFor(t, tm, "Acme Corp", "nah_live_abcd")
-	tm.Send(press("c"))
-	waitFor(t, tm, "New API key")
-	tm.Type("ci-key")
-	tm.Send(press("enter"))
-	waitFor(t, tm, "API key created", "nah_live_SECRETSECRETSECRETSECRET0000", "cannot be shown again")
-	eventually(t, func() bool { return g.called("POST /admin/v1/accounts/" + acct1 + "/keys") }, "the key creation request")
-	if !strings.Contains(g.lastBody("POST /admin/v1/accounts/"+acct1+"/keys"), `"label":"ci-key"`) {
-		t.Fatalf("label not sent: %s", g.lastBody("POST /admin/v1/accounts/"+acct1+"/keys"))
-	}
-	tm.Send(press("esc"))
-	tm.Send(press("q"))
-	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
-}
-
-func TestCreateAccountUsesTheChosenPlan(t *testing.T) {
-	g := newFakeGateway(t)
-	tm := start(t, testDeps(t, g, true, true), 130, 40)
-	tm.Send(press("2"))
-	waitFor(t, tm, "Acme Corp")
-	tm.Send(press("n"))
-	waitFor(t, tm, "New account", "free")
-	tm.Type("New Co")
-	tm.Send(press("down")) // free -> pro
-	waitFor(t, tm, "‹ pro ›")
-	tm.Send(press("enter"))
-	eventually(t, func() bool { return g.called("POST /admin/v1/accounts") }, "the account creation request")
-	body := g.lastBody("POST /admin/v1/accounts")
-	if !strings.Contains(body, `"name":"New Co"`) || !strings.Contains(body, `"planId":"pro"`) {
-		t.Fatalf("bad body: %s", body)
-	}
-	tm.Send(press("q"))
-	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
-}
-
-func TestRevokeNeedsConfirmation(t *testing.T) {
-	g := newFakeGateway(t)
-	tm := start(t, testDeps(t, g, true, true), 130, 40)
-	tm.Send(press("2"))
-	waitFor(t, tm, "nah_live_abcd")
-	tm.Send(press("tab")) // focus the keys pane
-	tm.Send(press("x"))
-	waitFor(t, tm, "Confirm", "Revoke key", "any other key cancels")
-	tm.Send(press("n")) // cancel
-	time.Sleep(150 * time.Millisecond)
-	if g.called("POST /admin/v1/keys/k1000000-0000-4000-8000-000000000001/revoke") {
-		t.Fatal("cancelling must not revoke anything")
-	}
-	tm.Send(press("x"))
-	waitFor(t, tm, "Revoke key")
-	tm.Send(press("y"))
-	eventually(t, func() bool { return g.called("POST /admin/v1/keys/k1000000-0000-4000-8000-000000000001/revoke") }, "the revoke request after confirming")
-	tm.Send(press("q"))
-	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
-}
-
-func TestSuspendNeedsConfirmationButActivateDoesNot(t *testing.T) {
-	g := newFakeGateway(t)
-	tm := start(t, testDeps(t, g, true, true), 130, 40)
-	tm.Send(press("2"))
-	waitFor(t, tm, "Acme Corp")
-	tm.Send(press("s"))
-	waitFor(t, tm, "Suspend", "API keys stop")
-	tm.Send(press("y"))
-	eventually(t, func() bool { return g.called("PATCH /admin/v1/accounts/" + acct1) }, "the suspend request")
-	if !strings.Contains(g.lastBody("PATCH /admin/v1/accounts/"+acct1), `"status":"suspended"`) {
-		t.Fatalf("wrong status: %s", g.lastBody("PATCH /admin/v1/accounts/"+acct1))
-	}
-	tm.Send(press("q"))
 	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
 }
 

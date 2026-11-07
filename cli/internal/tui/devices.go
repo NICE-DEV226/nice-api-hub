@@ -27,6 +27,13 @@ type deviceActionMsg struct {
 	reload bool
 }
 
+const (
+	modeBrowse = iota
+	modeNewKey
+	modeShowKey
+	modeConfirm
+)
+
 type devicesView struct {
 	d       Deps
 	w, h    int

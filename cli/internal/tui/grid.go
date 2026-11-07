@@ -27,10 +27,25 @@ type grid struct {
 	focused bool
 	// noHeader drops the title row and its rule (a plain list, like the folder picker's)
 	noHeader bool
+	// right marks columns whose cells hug the right edge (numbers, timestamps)
+	right []bool
 }
 
 func newGrid(titles []string, fixed []int) *grid {
 	return &grid{titles: titles, fixed: fixed, focused: true, width: 40, height: 6}
+}
+
+// Right marks the given columns as right-aligned and returns the grid for chaining.
+func (g *grid) Right(cols ...int) *grid {
+	if g.right == nil {
+		g.right = make([]bool, len(g.titles))
+	}
+	for _, c := range cols {
+		if c >= 0 && c < len(g.right) {
+			g.right[c] = true
+		}
+	}
+	return g
 }
 
 const gridHeaderLines = 2
@@ -142,12 +157,16 @@ func (g *grid) Click(x, y int) (int, bool) {
 	return row, true
 }
 
-func (g *grid) cell(s string, w int) string {
+func (g *grid) cell(s string, w int, right bool) string {
 	s = strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\t", " ")
 	if lipgloss.Width(s) > w {
 		s = ansi.Truncate(s, w, "…")
 	}
-	return " " + s + strings.Repeat(" ", w-lipgloss.Width(s)) + " "
+	pad := strings.Repeat(" ", w-lipgloss.Width(s))
+	if right {
+		return " " + pad + s + " "
+	}
+	return " " + s + pad + " "
 }
 
 func (g *grid) line(cells []string) string {
@@ -157,7 +176,8 @@ func (g *grid) line(cells []string) string {
 		if i < len(cells) {
 			c = cells[i]
 		}
-		b.WriteString(g.cell(c, g.cols[i]))
+		right := i < len(g.right) && g.right[i]
+		b.WriteString(g.cell(c, g.cols[i], right))
 	}
 	return b.String()
 }

@@ -54,7 +54,7 @@ func newHistoryView(d Deps) *historyView {
 		d:        d,
 		filterIn: fi,
 	}
-	v.table = newGrid([]string{"WHEN", "TITLE", "QUALITY", "SIZE", "SITE"}, []int{10, 0, 7, 8, 9})
+	v.table = newGrid([]string{"WHEN", "TITLE", "QUALITY", "SIZE", "SITE"}, []int{10, 0, 7, 8, 9}).Right(3)
 	return v
 }
 
@@ -303,13 +303,17 @@ func (v *historyView) View() string {
 		return "Loading history…"
 	}
 
-	leftW := maxInt(38, v.w*3/5)
-	v.leftW = leftW
-	rightW := v.w - leftW - 1
-
 	headerTitle := fmt.Sprintf("Downloads (%d)", len(v.filtered))
 	if v.filterIn.Value() != "" {
 		headerTitle += fmt.Sprintf(" · filter: %q", v.filterIn.Value())
+	}
+
+	narrow := v.w < detailMinWidth
+	listH := 0
+	if narrow {
+		// narrow terminal: stack the list over the details instead of crushing the detail pane
+		listH = maxInt(8, v.h*3/5)
+		v.table.SetSize(v.w-2, maxInt(4, listH-2))
 	}
 
 	leftContent := v.table.View()
@@ -324,9 +328,19 @@ func (v *historyView) View() string {
 		leftContent = v.filterIn.View() + "\n\n" + leftContent
 	}
 
-	left := panelFocus(headerTitle, leftContent, leftW, v.h-2, true)
-	right := v.detailView(rightW)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+	var body string
+	if narrow {
+		left := panelFocus(headerTitle, leftContent, v.w, listH, true)
+		right := v.detailView(v.w, v.h-listH-1)
+		body = lipgloss.JoinVertical(lipgloss.Left, left, "", right)
+	} else {
+		leftW := maxInt(38, v.w*3/5)
+		v.leftW = leftW
+		rightW := v.w - leftW - 1
+		left := panelFocus(headerTitle, leftContent, leftW, v.h-2, true)
+		right := v.detailView(rightW, v.h-2)
+		body = lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+	}
 
 	if v.confirm.active {
 		return confirmOverlay(v.confirm.prompt, v.w, v.h)
@@ -342,27 +356,28 @@ func (v *historyView) View() string {
 	return body
 }
 
-func (v *historyView) detailView(w int) string {
+func (v *historyView) detailView(w, h int) string {
 	sel := v.selected()
 	if sel == nil {
-		return panelFocus("Details", ui.MutedText.Render("Select a download to inspect details."), w, v.h-2, false)
+		return panelFocus("Details", ui.MutedText.Render("Select a download to inspect details."), w, h, false)
 	}
 
 	var sb strings.Builder
 	sb.WriteString(ui.Title.Render(ui.Truncate(sel.Title, w-6)) + "\n\n")
 
-	sb.WriteString(ui.Bold.Render("URL: ") + ui.MutedText.Render(ui.Truncate(sel.URL, w-12)) + "\n")
-	sb.WriteString(ui.Bold.Render("Site: ") + sel.Platform + "\n")
-	sb.WriteString(ui.Bold.Render("Quality: ") + sel.Label() + "\n")
-
 	sizeStr := "—"
 	if sel.Bytes > 0 {
 		sizeStr = ui.Bytes(sel.Bytes)
 	}
-	sb.WriteString(ui.Bold.Render("Size: ") + sizeStr + "\n")
-	sb.WriteString(ui.Bold.Render("When: ") + sel.At.Local().Format("2006-01-02 15:04:05") + "\n\n")
+	sb.WriteString(ui.KV(
+		[2]string{"url", ui.MutedText.Render(ui.Truncate(sel.URL, w-12))},
+		[2]string{"site", sel.Platform},
+		[2]string{"quality", sel.Label()},
+		[2]string{"size", sizeStr},
+		[2]string{"when", sel.At.Local().Format("2006-01-02 15:04:05")},
+	) + "\n\n")
 
-	sb.WriteString(ui.Bold.Render("Saved path:\n"))
+	sb.WriteString(ui.MutedText.Render("saved path") + "\n")
 	sb.WriteString(ui.MutedText.Render(wrap(sel.Path, w-6)) + "\n\n")
 
 	if sel.Exists() {
@@ -372,5 +387,5 @@ func (v *historyView) detailView(w int) string {
 	}
 
 	sb.WriteString("\n" + ui.MutedText.Render("c copy URL · o open folder\nx delete · C clear all · / filter"))
-	return panelFocus("Details", sb.String(), w, v.h-2, false)
+	return panelFocus("Details", sb.String(), w, h, false)
 }

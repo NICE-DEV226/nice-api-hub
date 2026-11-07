@@ -140,3 +140,26 @@ func TestActionBarHitTesting(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestGridRightAlignsMarkedColumns(t *testing.T) {
+	g := newGrid([]string{"NAME", "SIZE"}, []int{0, 6}).Right(1)
+	g.SetSize(30, 6)
+	g.SetRows([][]string{{"a", "1 KB"}, {"b", "99 MB"}})
+	out := g.View()
+	// the last letter of each size must sit at the same column
+	var ends []int
+	for _, l := range strings.Split(out, "\n")[2:] {
+		ends = append(ends, strings.LastIndex(l, "B"))
+	}
+	if len(ends) != 2 || ends[0] != ends[1] || ends[0] < 0 {
+		t.Fatalf("right-aligned column does not share an edge: %v\n%s", ends, out)
+	}
+	// and it hugs the column's right edge, not its left
+	if strings.Index(strings.Split(out, "\n")[2], "1 KB") < strings.Index(strings.Split(out, "\n")[2], "a")+2 {
+		t.Fatalf("value is not pushed right:\n%s", out)
+	}
+	// and the header title follows the column too
+	if !strings.Contains(strings.Split(out, "\n")[0], "SIZE") {
+		t.Fatalf("missing header: %q", out)
+	}
+}

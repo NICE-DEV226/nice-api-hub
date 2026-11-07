@@ -67,7 +67,7 @@ func newDevicesView(d Deps) *devicesView {
 		d:       d,
 		labelIn: li,
 	}
-	v.table = newGrid([]string{"LABEL", "PREFIX", "SCOPES", "VIA", "STATE", "LAST USED"}, []int{0, 15, 12, 8, 8, 10})
+	v.table = newGrid([]string{"LABEL", "PREFIX", "SCOPES", "VIA", "STATE", "LAST USED"}, []int{0, 15, 12, 8, 8, 10}).Right(5)
 	return v
 }
 
@@ -355,19 +355,34 @@ func (v *devicesView) View() string {
 		return "Loading devices & keys…"
 	}
 
-	leftW := maxInt(38, v.w*3/5)
-	v.leftW = leftW
-	rightW := v.w - leftW - 1
-
 	headerTitle := fmt.Sprintf("Devices & Keys (%d)", len(v.keys))
+
+	narrow := v.w < detailMinWidth
+	listH := 0
+	if narrow {
+		// narrow terminal: stack the list over the details instead of crushing the detail pane
+		listH = maxInt(8, v.h*3/5)
+		v.table.SetSize(v.w-2, maxInt(4, listH-2))
+	}
+
 	leftContent := v.table.View()
 	if len(v.keys) == 0 {
 		leftContent = ui.MutedText.Render("No keys found for this account.\nPress n to create one.")
 	}
 
-	left := panelFocus(headerTitle, leftContent, leftW, v.h-2, true)
-	right := v.detailView(rightW)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+	var body string
+	if narrow {
+		left := panelFocus(headerTitle, leftContent, v.w, listH, true)
+		right := v.detailView(v.w, v.h-listH-1)
+		body = lipgloss.JoinVertical(lipgloss.Left, left, "", right)
+	} else {
+		leftW := maxInt(38, v.w*3/5)
+		v.leftW = leftW
+		rightW := v.w - leftW - 1
+		left := panelFocus(headerTitle, leftContent, leftW, v.h-2, true)
+		right := v.detailView(rightW, v.h-2)
+		body = lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+	}
 
 	switch v.mode {
 	case modeNewKey:
@@ -397,10 +412,10 @@ func (v *devicesView) View() string {
 	return body
 }
 
-func (v *devicesView) detailView(w int) string {
+func (v *devicesView) detailView(w, h int) string {
 	sel := v.selected()
 	if sel == nil {
-		return panelFocus("Details", ui.MutedText.Render("Select a key to view details.\nPress n to create a new key."), w, v.h-2, false)
+		return panelFocus("Details", ui.MutedText.Render("Select a key to view details.\nPress n to create a new key."), w, h, false)
 	}
 
 	now := v.d.Now()
@@ -411,37 +426,44 @@ func (v *devicesView) detailView(w int) string {
 	}
 	sb.WriteString(ui.Title.Render(ui.Truncate(title, w-6)) + "\n\n")
 
-	sb.WriteString(ui.Bold.Render("Key ID: ") + ui.MutedText.Render(sel.ID) + "\n")
-	sb.WriteString(ui.Bold.Render("Prefix: ") + sel.Prefix + "…" + "\n")
-	sb.WriteString(ui.Bold.Render("State:  ") + ui.Dot(sel.State(now)) + " " + sel.State(now) + "\n")
 	via := sel.CreatedVia
 	if via == "" {
 		via = "device"
 	}
-	sb.WriteString(ui.Bold.Render("Via:    ") + via + "\n")
 	scopes := strings.Join(sel.Scopes, ", ")
 	if scopes == "" {
 		scopes = "media"
 	}
-	sb.WriteString(ui.Bold.Render("Scopes: ") + scopes + "\n\n")
+	state := sel.State(now)
+	sb.WriteString(ui.KV(
+		[2]string{"key id", ui.MutedText.Render(sel.ID)},
+		[2]string{"prefix", sel.Prefix + "…"},
+		[2]string{"state", ui.Dot(state)},
+		[2]string{"via", via},
+		[2]string{"scopes", scopes},
+	) + "\n")
 
 	if sel.Current {
-		sb.WriteString(ui.OK.Render("★ Active credentials for this session") + "\n\n")
+		sb.WriteString("\n" + ui.OK.Render("★ Active credentials for this session") + "\n")
 	}
 
+	var meta [][2]string
 	if sel.CreatedAt != "" {
-		sb.WriteString(ui.Bold.Render("Created:   ") + sel.CreatedAt + "\n")
+		meta = append(meta, [2]string{"created", sel.CreatedAt})
 	}
 	if sel.LastUsedAt != nil {
-		sb.WriteString(ui.Bold.Render("Last used: ") + ui.AgoString(sel.LastUsedAt, now) + "\n")
+		meta = append(meta, [2]string{"last used", ui.AgoString(sel.LastUsedAt, now)})
 	}
 	if sel.ExpiresAt != nil {
-		sb.WriteString(ui.Bold.Render("Expires:   ") + *sel.ExpiresAt + "\n")
+		meta = append(meta, [2]string{"expires", *sel.ExpiresAt})
 	}
 	if sel.RevokedAt != nil {
-		sb.WriteString(ui.Danger.Render("Revoked:   ") + *sel.RevokedAt + "\n")
+		meta = append(meta, [2]string{"revoked", ui.Danger.Render(*sel.RevokedAt)})
+	}
+	if len(meta) > 0 {
+		sb.WriteString("\n" + ui.KV(meta...) + "\n")
 	}
 
 	sb.WriteString("\n" + ui.MutedText.Render("n new key · r revoke · R rotate · y copy ID"))
-	return panelFocus("Details", sb.String(), w, v.h-2, false)
+	return panelFocus("Details", sb.String(), w, h, false)
 }

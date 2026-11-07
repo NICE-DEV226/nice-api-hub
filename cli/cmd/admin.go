@@ -39,7 +39,7 @@ func resolveAccount(ctx context.Context, c *api.Client, ref string) (api.Account
 	}
 	names := make([]string, len(hits))
 	for i, h := range hits {
-		names[i] = fmt.Sprintf("%s (%s)", h.Name, h.ID[:8])
+		names[i] = fmt.Sprintf("%s (%s)", h.Name, shortID(h.ID))
 	}
 	return api.Account{}, usageErr(fmt.Errorf("%q is ambiguous: %s", ref, strings.Join(names, ", ")))
 }
@@ -118,7 +118,7 @@ func (a *app) adminAccounts() *cobra.Command {
 				if t, err := time.Parse(time.RFC3339, acc.CreatedAt); err == nil {
 					created = ui.Ago(t, now)
 				}
-				rows = append(rows, []string{acc.ID[:8], acc.Name, acc.PlanID, ui.Dot(acc.Status), created})
+				rows = append(rows, []string{shortID(acc.ID), acc.Name, acc.PlanID, ui.Dot(acc.Status), created})
 			}
 			if len(rows) == 0 {
 				a.println(ui.MutedText.Render("No accounts yet. Create one with `nah admin accounts create <name> --plan pro`."))
@@ -186,7 +186,7 @@ func (a *app) adminAccounts() *cobra.Command {
 				return a.printJSON(acc)
 			}
 			a.printf("%s created account %s %s\n", ui.OK.Render("✓"), ui.Bold.Render(acc.Name), ui.MutedText.Render(acc.ID))
-			a.println(ui.MutedText.Render("  Next: nah admin keys create " + acc.ID[:8] + " --label prod"))
+			a.println(ui.MutedText.Render("  Next: nah admin keys create " + shortID(acc.ID) + " --label prod"))
 			return nil
 		},
 	}

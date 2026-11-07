@@ -110,6 +110,18 @@ func New(baseURL, apiKey, adminToken string) (*Client, error) {
 	}, nil
 }
 
+// SetHTTPClient replaces the client used for API calls and shares its transport
+// (proxy, TLS config, custom dialer) with the streaming client. The streaming
+// client keeps no overall timeout: downloads are bounded by the caller's context.
+func (c *Client) SetHTTPClient(hc *http.Client) {
+	c.HTTP = hc
+	c.streaming = &http.Client{
+		Transport:     hc.Transport,
+		CheckRedirect: hc.CheckRedirect,
+		Jar:           hc.Jar,
+	}
+}
+
 func (c *Client) newRequest(ctx context.Context, method, p string, q url.Values, body any, auth authKind) (*http.Request, error) {
 	var rd io.Reader
 	if body != nil {

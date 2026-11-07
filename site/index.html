@@ -39,12 +39,16 @@
         from your terminal, over SSH, or inside a script.
       </p>
       <div class="install">
+        <div class="install-tabs" role="tablist">
+          <button class="os-tab on" data-os="unix" type="button">Linux · macOS</button>
+          <button class="os-tab" data-os="win" type="button">Windows</button>
+        </div>
         <div class="install-line">
-          <span class="prompt">$</span>
+          <span class="prompt" id="install-prompt">$</span>
           <code id="install-cmd">curl -fsSL https://github.com/NICE-DEV226/nice-api-hub/releases/latest/download/install.sh | sh</code>
           <button class="copy" id="copy-btn" type="button" aria-label="Copy install command">copy</button>
         </div>
-        <p class="install-note">Linux · macOS · Windows &nbsp;—&nbsp; no admin rights, checksum-verified</p>
+        <p class="install-note">no admin rights · checksum-verified · <code>nah update</code> keeps it current</p>
       </div>
       <ul class="hero-facts">
         <li>one static binary</li>

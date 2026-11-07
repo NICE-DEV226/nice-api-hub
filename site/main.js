@@ -65,8 +65,25 @@ if (reduced) {
   setTimeout(typeUrl, 600);
 }
 
+const COMMANDS = {
+  unix: "curl -fsSL https://github.com/NICE-DEV226/nice-api-hub/releases/latest/download/install.sh | sh",
+  win: "irm https://github.com/NICE-DEV226/nice-api-hub/releases/latest/download/install.ps1 | iex",
+};
+const installCmd = document.getElementById("install-cmd");
+const installPrompt = document.getElementById("install-prompt");
+
+for (const tab of document.querySelectorAll(".os-tab")) {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".os-tab").forEach((t) => t.classList.remove("on"));
+    tab.classList.add("on");
+    const os = tab.dataset.os;
+    installCmd.textContent = COMMANDS[os];
+    installPrompt.textContent = os === "win" ? "PS>" : "$";
+  });
+}
+
 copyBtn.addEventListener("click", async () => {
-  const cmd = document.getElementById("install-cmd").textContent;
+  const cmd = installCmd.textContent;
   try {
     await navigator.clipboard.writeText(cmd);
   } catch {

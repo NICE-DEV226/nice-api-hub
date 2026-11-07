@@ -19,6 +19,13 @@ var (
 	Subtle   = lipgloss.AdaptiveColor{Light: "#D0D7DE", Dark: "#30363D"}
 	Text     = lipgloss.AdaptiveColor{Light: "#1F2328", Dark: "#E6EDF3"}
 	OnAccent = lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#0D1117"}
+
+	// Filled surfaces: a card (dialog) and the chips that sit on it, plus the input field fills.
+	// Each is a step away from the terminal background so the shapes read on both light and dark.
+	CardBG       = lipgloss.AdaptiveColor{Light: "#F1F4F7", Dark: "#262C34"}
+	ChipBG       = lipgloss.AdaptiveColor{Light: "#DCE2E8", Dark: "#3A424E"}
+	FieldBG      = lipgloss.AdaptiveColor{Light: "#EAEEF2", Dark: "#2B313A"}
+	FieldBGFocus = lipgloss.AdaptiveColor{Light: "#DDE3EA", Dark: "#363E4A"}
 )
 
 // Reusable styles.
@@ -36,8 +43,8 @@ var (
 	PanelHot  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(Accent).Padding(0, 1)
 )
 
-// StatusStyle colours a platform/account status word.
-func StatusStyle(status string) lipgloss.Style {
+// statusStyle colours a platform/account status word.
+func statusStyle(status string) lipgloss.Style {
 	switch status {
 	case "operational", "active", "succeeded", "delivered", "ready", "ok":
 		return OK
@@ -51,7 +58,7 @@ func StatusStyle(status string) lipgloss.Style {
 
 // Dot renders a coloured status bullet followed by the status word.
 func Dot(status string) string {
-	return StatusStyle(status).Render("● " + status)
+	return statusStyle(status).Render("● " + status)
 }
 
 // KV renders aligned "key  value" lines.

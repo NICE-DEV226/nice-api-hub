@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/api"
+	"github.com/NICE-DEV226/nice-api-hub/cli/internal/config"
 	"github.com/NICE-DEV226/nice-api-hub/cli/internal/ui"
 )
 
@@ -21,11 +22,19 @@ type devicesLoadedMsg struct {
 }
 
 type deviceActionMsg struct {
-	text   string
-	err    error
-	newKey *api.Key
-	reload bool
+	text    string
+	err     error
+	newKey  *api.Key
+	reload  bool
+	signOut bool // the revoked key was this computer's: the stored secret must be cleared
 }
+
+const (
+	modeBrowse = iota
+	modeNewKey
+	modeShowKey
+	modeConfirm
+)
 
 type devicesView struct {
 	d       Deps
@@ -187,6 +196,13 @@ func (v *devicesView) Update(msg tea.Msg) tea.Cmd {
 		if msg.newKey != nil {
 			v.newKey, v.mode = msg.newKey, modeShowKey
 		}
+		if msg.signOut && v.d.Session != nil {
+			if _, err := v.d.Session.StoreSecret(config.KindAPIKey, ""); err != nil {
+				v.toast.set(now, "Revoked, but the stored key could not be cleared: "+err.Error(), true)
+			} else {
+				return func() tea.Msg { return setupDoneMsg{} }
+			}
+		}
 		if msg.reload {
 			return v.reload()
 		}
@@ -267,9 +283,9 @@ func (v *devicesView) onKey(msg tea.KeyMsg) tea.Cmd {
 		if sel == nil {
 			return nil
 		}
-		id, label := sel.ID, sel.Label
+		id, label, current := sel.ID, sel.Label, sel.Current
 		warn := ""
-		if sel.Current {
+		if current {
 			warn = " — WARNING: This is THIS computer's current key!"
 		}
 		v.mode = modeConfirm
@@ -277,7 +293,7 @@ func (v *devicesView) onKey(msg tea.KeyMsg) tea.Cmd {
 		v.confirm.run = func() tea.Cmd {
 			return v.act(func(ctx context.Context) (deviceActionMsg, error) {
 				_, err := v.d.Client.RevokeMyKey(ctx, id)
-				return deviceActionMsg{text: "Revoked key " + label, reload: true}, err
+				return deviceActionMsg{text: "Revoked key " + label, reload: true, signOut: current}, err
 			})
 		}
 		return nil

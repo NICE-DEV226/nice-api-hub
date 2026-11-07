@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -50,23 +51,9 @@ func (e Entry) Label() string {
 	case e.Kind == "audio":
 		return "audio"
 	case e.MaxHeight > 0:
-		return itoa(e.MaxHeight) + "p"
+		return strconv.Itoa(e.MaxHeight) + "p"
 	}
 	return "video"
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var b [12]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(b[i:])
 }
 
 // Store is an append-only JSON-lines file, trimmed to Max entries.

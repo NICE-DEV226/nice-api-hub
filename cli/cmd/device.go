@@ -23,7 +23,7 @@ func (a *app) onboarder() (onboard.Service, error) {
 	}
 	c.UserAgent = "nah-cli/" + a.env.Version
 	if a.env.HTTPClient != nil {
-		c.HTTP = a.env.HTTPClient
+		c.SetHTTPClient(a.env.HTTPClient)
 	}
 	return onboard.Service{Client: c, Device: a.env.Device, Solve: a.env.Solve}, nil
 }

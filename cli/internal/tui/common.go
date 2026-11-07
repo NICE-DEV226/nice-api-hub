@@ -23,7 +23,7 @@ type Deps struct {
 	Client      *api.Client
 	Profile     string
 	HasAPI      bool // an API key is configured: dashboard account panel and the playground work
-	HasAdmin    bool // an admin token is configured: the accounts tab works
+	HasAdmin    bool // an admin token is configured: the operator can still set this computer up
 	Now         func() time.Time
 	DownloadDir string
 	DataDir     string // persistent local state, including resumable playlist checkpoints

@@ -126,7 +126,7 @@ func (a *app) client() (*api.Client, error) {
 	}
 	c.UserAgent = "nah-cli/" + a.env.Version
 	if a.env.HTTPClient != nil {
-		c.HTTP = a.env.HTTPClient
+		c.SetHTTPClient(a.env.HTTPClient)
 	}
 	return c, nil
 }

@@ -577,11 +577,13 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
           throw errors.forbidden('platform_not_allowed', `Your plan/key does not include "${target.platform.id}".`);
         }
 
+        // Resolve first: a slow provider failover must not hold a download slot.
+        const { media, cached } = await mediaService.resolve(target);
+        req.usage.cacheHit = cached;
+
         const release = downloadSlots.tryAcquire();
         if (!release) throw errors.overloaded(5);
         try {
-          const { media, cached } = await mediaService.resolve(target);
-          req.usage.cacheHit = cached;
           const plan = planDownload(media.variants, {
             kind: req.query.kind,
             maxHeight: req.query.maxHeight,

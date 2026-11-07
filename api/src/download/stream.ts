@@ -158,13 +158,21 @@ async function rangedStream(
   async function* chunks(): AsyncGenerator<Buffer> {
     let res: Response | null = first;
     let offset = 0;
+    let emptyRounds = 0;
     while (res) {
       if (!res.body) return;
+      const before = offset;
       for await (const piece of Readable.fromWeb(res.body as never)) {
         offset += (piece as Buffer).length;
         yield piece as Buffer;
       }
       if (res.status === 200) return; // Range ignored: the whole file just streamed
+      if (offset === before) {
+        // A 206 with an empty body would refetch the same range forever.
+        if (++emptyRounds >= 3) throw new Error('media host stopped sending data');
+      } else {
+        emptyRounds = 0;
+      }
       if (totalBytes !== undefined && offset >= totalBytes) return;
       res = await guardedFetch(input, limits, signal, { range: `bytes=${offset}-${offset + CHUNK_BYTES - 1}` });
       if (res.status === 416) return;

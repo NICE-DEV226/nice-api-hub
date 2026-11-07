@@ -333,7 +333,10 @@ func (m *playground) startPlaylistDownload() tea.Cmd {
 	ch := make(chan dlEvent, 32)
 	m.ensurePlaylistCheckpoint()
 	checkpoint := *m.playlistCP
-	checkpoint.Items = append([]playlist.Item(nil), m.playlistCP.Items...)
+	// Share the items slice: the worker is the only writer while it runs, and
+	// m.playlistCP.Items must reflect the final statuses so "Resume remaining"
+	// in the same session does not start from a stale checkpoint.
+	checkpoint.Items = m.playlistCP.Items
 	store := m.playlistStore
 	m.state = pgPlaylistDownloading
 	m.playlistStatus = make([]string, len(m.playlist.Entries))

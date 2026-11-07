@@ -379,6 +379,72 @@ main > section {
 }
 .feat p { color: var(--muted); font-size: .88rem; }
 
+/* inside the app */
+
+.app-mock {
+  background: var(--term);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: .85rem;
+}
+
+.app-tabs {
+  display: flex;
+  gap: .4rem;
+  padding: .8rem 1.1rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.app-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1.1rem;
+}
+
+.app-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .8rem .9rem;
+}
+
+.ap-title {
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: .6rem;
+}
+
+.ap-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .18rem 0;
+  color: var(--text);
+  font-size: .8rem;
+}
+.ap-row .ap-right { color: var(--muted); }
+.ap-row .muted { color: var(--muted); }
+.ap-row .ok { color: var(--good); }
+.ap-row .warn { color: var(--warn); }
+
+.ap-bar {
+  height: 6px;
+  background: var(--border-soft);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: .3rem 0 .5rem;
+}
+.ap-fill { height: 100%; background: var(--accent); border-radius: 3px; }
+
+.app-keys {
+  padding: .6rem 1.1rem;
+  border-top: 1px solid var(--border-soft);
+  color: var(--subtle);
+  font-size: .76rem;
+}
+.app-keys b { color: var(--text); font-weight: 500; }
+
 /* how it works */
 
 .how-grid {
@@ -432,6 +498,7 @@ main > section {
 @media (max-width: 40rem) {
   .nav nav a:not(.nav-cta) { display: none; }
   .hero h1 { font-size: 2.1rem; }
+  .app-panels { grid-template-columns: 1fr; }
 }
 
 /* ---------- reduced motion ---------- */

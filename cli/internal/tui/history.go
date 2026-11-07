@@ -54,7 +54,7 @@ func newHistoryView(d Deps) *historyView {
 		d:        d,
 		filterIn: fi,
 	}
-	v.table = newGrid([]string{"WHEN", "TITLE", "QUALITY", "SIZE", "SITE"}, []int{10, 0, 7, 8, 9})
+	v.table = newGrid([]string{"WHEN", "TITLE", "QUALITY", "SIZE", "SITE"}, []int{10, 0, 7, 8, 9}).Right(3)
 	return v
 }
 
@@ -351,18 +351,19 @@ func (v *historyView) detailView(w int) string {
 	var sb strings.Builder
 	sb.WriteString(ui.Title.Render(ui.Truncate(sel.Title, w-6)) + "\n\n")
 
-	sb.WriteString(ui.Bold.Render("URL: ") + ui.MutedText.Render(ui.Truncate(sel.URL, w-12)) + "\n")
-	sb.WriteString(ui.Bold.Render("Site: ") + sel.Platform + "\n")
-	sb.WriteString(ui.Bold.Render("Quality: ") + sel.Label() + "\n")
-
 	sizeStr := "—"
 	if sel.Bytes > 0 {
 		sizeStr = ui.Bytes(sel.Bytes)
 	}
-	sb.WriteString(ui.Bold.Render("Size: ") + sizeStr + "\n")
-	sb.WriteString(ui.Bold.Render("When: ") + sel.At.Local().Format("2006-01-02 15:04:05") + "\n\n")
+	sb.WriteString(ui.KV(
+		[2]string{"url", ui.MutedText.Render(ui.Truncate(sel.URL, w-12))},
+		[2]string{"site", sel.Platform},
+		[2]string{"quality", sel.Label()},
+		[2]string{"size", sizeStr},
+		[2]string{"when", sel.At.Local().Format("2006-01-02 15:04:05")},
+	) + "\n\n")
 
-	sb.WriteString(ui.Bold.Render("Saved path:\n"))
+	sb.WriteString(ui.MutedText.Render("saved path") + "\n")
 	sb.WriteString(ui.MutedText.Render(wrap(sel.Path, w-6)) + "\n\n")
 
 	if sel.Exists() {

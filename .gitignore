@@ -83,3 +83,4 @@ secrets/
 # nah CLI build output
 cli/bin
 cli/dist
+__pycache__/

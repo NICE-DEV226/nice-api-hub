@@ -379,6 +379,43 @@ main > section {
 }
 .feat p { color: var(--muted); font-size: .88rem; }
 
+/* comparison */
+
+.compare { overflow-x: auto; }
+
+.cmp-grid {
+  display: grid;
+  grid-template-columns: 9rem repeat(3, minmax(11rem, 1fr));
+  gap: 0;
+  min-width: 46rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.cmp-col, .cmp-row { display: contents; }
+
+.cmp-grid > * {
+  padding: .7rem .9rem;
+  font-size: .82rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+.cmp-grid > *:nth-last-child(-n+4) { border-bottom: none; }
+
+.cmp-head > span {
+  background: var(--panel);
+  color: var(--muted);
+  font-weight: 700;
+}
+.cmp-head .cmp-name { color: var(--accent); }
+.cmp-head > span:first-child { background: var(--panel); }
+
+.cmp-what { color: var(--subtle); }
+.cmp-cell { color: var(--muted); }
+.cmp-cell.yes { color: var(--text); }
+.cmp-cell.no { color: var(--subtle); }
+.cmp-cell code { font-size: .78rem; }
+
 /* inside the app */
 
 .app-mock {

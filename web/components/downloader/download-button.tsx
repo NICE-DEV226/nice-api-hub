@@ -67,7 +67,7 @@ export function DownloadButton({
         type="button"
         onClick={start}
         disabled={phase !== "idle"}
-        className="flex h-13 w-full items-center justify-center gap-2.5 rounded-2xl bg-accent py-3.5 text-[15px] font-bold text-ink shadow-[0_8px_30px_rgba(88,166,255,0.25)] transition-all hover:bg-[#79b8ff] active:scale-[0.99] disabled:cursor-wait disabled:opacity-80"
+        className="flex h-13 w-full items-center justify-center gap-2.5 rounded-lg bg-accent py-3.5 text-[15px] font-bold text-ink transition-all hover:bg-[#79b8ff] active:scale-[0.99] disabled:cursor-wait disabled:opacity-80"
       >
         {phase === "minting" ? (
           <Loader2 className="size-5 animate-spin" />

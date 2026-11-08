@@ -31,7 +31,7 @@ export function SessionHistory({ onPick }: SessionHistoryProps) {
         <History className="size-3.5" />
         Recent on this device
       </h3>
-      <ul className="divide-y divide-edge-soft overflow-hidden rounded-2xl border border-edge bg-panel">
+      <ul className="divide-y divide-edge-soft overflow-hidden rounded-lg border border-edge bg-panel">
         {items.map((item) => (
           <li key={item.url}>
             <button

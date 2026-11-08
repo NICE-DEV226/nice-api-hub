@@ -22,9 +22,9 @@ export function MediaSummaryCard({ media }: { media: MediaResult }) {
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex gap-4 rounded-2xl border border-edge bg-panel p-4"
+      className="flex gap-4 rounded-lg border border-edge bg-panel p-4"
     >
-      <div className="relative size-28 shrink-0 overflow-hidden rounded-xl bg-panel-2 sm:size-36">
+      <div className="relative size-28 shrink-0 overflow-hidden rounded-md bg-panel-2 sm:size-36">
         {media.thumbnail ? (
           // Thumbnails come from arbitrary CDNs; next/image remotePatterns would need a wildcard.
           // eslint-disable-next-line @next/next/no-img-element

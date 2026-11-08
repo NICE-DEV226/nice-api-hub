@@ -29,7 +29,7 @@ export function ErrorPanel({ title, detail, onRetry }: ErrorPanelProps) {
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full rounded-2xl border border-rose/30 bg-panel p-5"
+      className="w-full rounded-lg border border-rose/30 bg-panel p-5"
       role="alert"
     >
       <div className="flex items-start gap-3">
@@ -40,7 +40,7 @@ export function ErrorPanel({ title, detail, onRetry }: ErrorPanelProps) {
           {onRetry ? (
             <button
               onClick={onRetry}
-              className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl border border-edge bg-panel-2 px-4 text-sm font-medium text-mist transition-colors hover:border-accent/50 hover:text-snow"
+              className="mt-4 inline-flex h-10 items-center gap-2 rounded-md border border-edge bg-panel-2 px-4 text-sm font-medium text-mist transition-colors hover:border-accent/50 hover:text-snow"
             >
               <RotateCcw className="size-4" />
               Try again

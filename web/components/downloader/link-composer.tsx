@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardPaste, Link2, Loader2 } from "lucide-react";
+import { ClipboardPaste, Loader2 } from "lucide-react";
 
 interface LinkComposerProps {
   onSubmit: (url: string) => void;
@@ -34,8 +34,8 @@ export function LinkComposer({ onSubmit, busy, initialUrl }: LinkComposerProps) 
 
   return (
     <form onSubmit={submit} className="w-full">
-      <div className="group flex items-center gap-2 rounded-2xl border border-edge bg-panel p-2 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-colors focus-within:border-accent/60">
-        <Link2 className="ml-2 size-5 shrink-0 text-fog transition-colors group-focus-within:text-accent" />
+      <div className="group flex items-center gap-2 rounded-lg border border-edge bg-panel p-2 transition-colors focus-within:border-accent/60">
+        <span className="ml-2 shrink-0 font-mono text-sm text-mint select-none">❯</span>
         <input
           type="url"
           inputMode="url"
@@ -53,7 +53,7 @@ export function LinkComposer({ onSubmit, busy, initialUrl }: LinkComposerProps) 
         <button
           type="button"
           onClick={paste}
-          className="hidden h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-sm text-fog transition-colors hover:bg-panel-2 hover:text-mist sm:flex"
+          className="hidden h-10 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm text-fog transition-colors hover:bg-panel-2 hover:text-mist sm:flex"
           title="Paste from clipboard"
         >
           <ClipboardPaste className="size-4" />
@@ -62,7 +62,7 @@ export function LinkComposer({ onSubmit, busy, initialUrl }: LinkComposerProps) 
         <button
           type="submit"
           disabled={busy || !url.trim()}
-          className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-ink transition-all hover:bg-[#79b8ff] disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-10 shrink-0 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-ink transition-all hover:bg-[#79b8ff] disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? <Loader2 className="size-4 animate-spin" /> : null}
           {busy ? "Resolving…" : "Resolve"}

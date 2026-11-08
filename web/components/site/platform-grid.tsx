@@ -18,17 +18,17 @@ export function PlatformGrid() {
   return (
     <section id="platforms" className="mx-auto w-full max-w-5xl scroll-mt-20 px-4 py-16">
       <Reveal>
-        <p className="text-center font-mono text-[11px] uppercase tracking-[0.25em] text-accent">
-          Supported platforms
+        <p className="text-center font-mono text-xs text-fog">
+          <span className="text-mint">$</span> nah platforms --list
         </p>
-        <h2 className="mt-2 text-center text-2xl font-bold tracking-tight text-snow sm:text-3xl">
+        <h2 className="mt-3 text-center text-2xl font-bold tracking-tight text-snow sm:text-3xl">
           If it&apos;s public, it&apos;s probably here.
         </h2>
       </Reveal>
       <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {PLATFORMS.map((p, i) => (
           <Reveal key={p.id} delay={i * 0.04}>
-            <div className="group flex h-full items-center gap-3 rounded-xl border border-edge bg-panel p-3.5 transition-all hover:border-accent/40 hover:bg-panel-2">
+            <div className="group flex h-full items-center gap-3 rounded-md border border-edge bg-panel p-3.5 transition-all hover:border-accent/40 hover:bg-panel-2">
               <BrandIcon platform={p.id} className="size-6 shrink-0" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-snow">{p.name}</p>

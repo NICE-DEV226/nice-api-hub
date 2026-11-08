@@ -11,7 +11,7 @@ const LINKS = [
 
 export function NavBar() {
   return (
-    <header className="sticky top-0 z-40 border-b border-edge-soft/60 bg-ink/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-edge-soft/60 bg-ink">
       <nav className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2 font-mono text-sm font-bold tracking-[0.25em] text-accent">
           <Terminal className="size-4" />

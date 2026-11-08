@@ -33,7 +33,7 @@ const FAQS = [
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-xl border border-edge bg-panel">
+    <div className="rounded-md border border-edge bg-panel">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -66,8 +66,10 @@ export function FaqSection() {
   return (
     <section id="faq" className="mx-auto w-full max-w-3xl scroll-mt-20 px-4 py-16">
       <Reveal>
-        <p className="text-center font-mono text-[11px] uppercase tracking-[0.25em] text-accent">FAQ</p>
-        <h2 className="mt-2 text-center text-2xl font-bold tracking-tight text-snow sm:text-3xl">
+        <p className="text-center font-mono text-xs text-fog">
+          <span className="text-mint">$</span> nah --faq
+        </p>
+        <h2 className="mt-3 text-center text-2xl font-bold tracking-tight text-snow sm:text-3xl">
           Fair questions.
         </h2>
       </Reveal>

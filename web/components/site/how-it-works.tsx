@@ -31,10 +31,10 @@ export function HowItWorks() {
     <section id="how" className="border-y border-edge-soft/60 bg-panel/40">
       <div className="mx-auto w-full max-w-5xl scroll-mt-20 px-4 py-16">
         <Reveal>
-          <p className="text-center font-mono text-[11px] uppercase tracking-[0.25em] text-accent">
-            How it works
+          <p className="text-center font-mono text-xs text-fog">
+            <span className="text-mint">$</span> nah --how
           </p>
-          <h2 className="mt-2 text-center text-2xl font-bold tracking-tight text-snow sm:text-3xl">
+          <h2 className="mt-3 text-center text-2xl font-bold tracking-tight text-snow sm:text-3xl">
             Three steps. That&apos;s the whole app.
           </h2>
         </Reveal>
@@ -42,7 +42,7 @@ export function HowItWorks() {
         <div className="mt-10 grid gap-4 sm:grid-cols-3">
           {STEPS.map((s, i) => (
             <Reveal key={s.title} delay={i * 0.08}>
-              <div className="relative h-full rounded-2xl border border-edge bg-panel p-5">
+              <div className="relative h-full rounded-lg border border-edge bg-panel p-5">
                 <span className="absolute right-4 top-4 font-mono text-xs text-fog/50">
                   {String(i + 1).padStart(2, "0")}
                 </span>

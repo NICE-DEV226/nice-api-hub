@@ -1,23 +1,26 @@
 @import "tailwindcss";
 
+/* Palette mirrors docs/ and the TUI exactly: flat GitHub-dark, one blue accent,
+   colour only where it carries meaning. No gradients, no glass. */
 @theme {
-  --color-ink: #0b0f14;
-  --color-panel: #10161f;
-  --color-panel-2: #151d29;
-  --color-edge: #223046;
-  --color-edge-soft: #1a2432;
-  --color-fog: #8b98a9;
-  --color-mist: #c3cdd9;
-  --color-snow: #eef2f7;
+  --color-ink: #0d1117;
+  --color-panel: #161b22;
+  --color-panel-2: #21262d;
+  --color-edge: #30363d;
+  --color-edge-soft: #21262d;
+  --color-term: #010409;
+  --color-fog: #8b949e;
+  --color-mist: #c9d1d9;
+  --color-snow: #e6edf3;
   --color-accent: #58a6ff;
-  --color-accent-dim: #2d5f9e;
-  --color-accent-soft: #1c2f47;
+  --color-accent-dim: #1f6feb;
+  --color-accent-soft: #13233b;
   --color-mint: #3fb950;
   --color-amber: #d29922;
   --color-rose: #f85149;
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jbmono), ui-monospace, monospace;
+  --font-sans: var(--font-jbmono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-mono: var(--font-jbmono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 html {
@@ -25,20 +28,37 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(1200px 600px at 50% -10%, rgba(88, 166, 255, 0.07), transparent 60%),
-    var(--color-ink);
+  background: var(--color-ink);
   color: var(--color-snow);
   font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
   min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgba(88, 166, 255, 0.35);
+  background: rgba(88, 166, 255, 0.25);
 }
 
 /* Slim, theme-matched scrollbars */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-edge) transparent;
+}
+
+/* Blinking terminal cursor */
+@keyframes nah-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.nah-cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 0.15em;
+  vertical-align: -0.15em;
+  background: var(--color-accent);
+  animation: nah-blink 1.1s steps(1) infinite;
 }

@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0b0f14;
+  --color-panel: #10161f;
+  --color-panel-2: #151d29;
+  --color-edge: #223046;
+  --color-edge-soft: #1a2432;
+  --color-fog: #8b98a9;
+  --color-mist: #c3cdd9;
+  --color-snow: #eef2f7;
+  --color-accent: #58a6ff;
+  --color-accent-dim: #2d5f9e;
+  --color-accent-soft: #1c2f47;
+  --color-mint: #3fb950;
+  --color-amber: #d29922;
+  --color-rose: #f85149;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jbmono), ui-monospace, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(88, 166, 255, 0.07), transparent 60%),
+    var(--color-ink);
+  color: var(--color-snow);
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+}
+
+::selection {
+  background: rgba(88, 166, 255, 0.35);
+}
+
+/* Slim, theme-matched scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-edge) transparent;
+}

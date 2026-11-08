@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardPaste, Loader2 } from "lucide-react";
+import { Check, ClipboardPaste, Loader2, TriangleAlert } from "lucide-react";
+
+import { detectPlatform } from "@/lib/platform-detect";
+import { BrandIcon } from "@/components/site/brand-icon";
 
 interface LinkComposerProps {
   onSubmit: (url: string) => void;
@@ -31,6 +34,11 @@ export function LinkComposer({ onSubmit, busy, initialUrl }: LinkComposerProps) 
       /* clipboard permission denied — user can paste manually */
     }
   };
+
+  const trimmed = url.trim();
+  const detected = trimmed.length > 3 ? detectPlatform(trimmed) : null;
+  const unknownHost =
+    trimmed.length > 3 && !detected && /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed);
 
   return (
     <form onSubmit={submit} className="w-full">
@@ -68,9 +76,24 @@ export function LinkComposer({ onSubmit, busy, initialUrl }: LinkComposerProps) 
           {busy ? "Resolving…" : "Resolve"}
         </button>
       </div>
-      <p className="mt-3 px-1 text-center text-xs text-fog">
-        YouTube · TikTok · X · Instagram · Facebook · SoundCloud · LinkedIn · Pinterest · Dailymotion · Bluesky
-      </p>
+      <div className="mt-3 flex min-h-5 items-center justify-center gap-2 px-1 text-xs">
+        {detected ? (
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-mint/30 bg-mint/10 px-2.5 py-1 text-mint">
+            <BrandIcon platform={detected.id} className="size-3.5" />
+            {detected.name}
+            <Check className="size-3.5" />
+          </span>
+        ) : unknownHost ? (
+          <span className="inline-flex items-center gap-1.5 text-amber">
+            <TriangleAlert className="size-3.5" />
+            unrecognized site — the gateway supports 10 platforms
+          </span>
+        ) : (
+          <span className="text-fog">
+            YouTube · TikTok · X · Instagram · Facebook · SoundCloud · LinkedIn · Pinterest · Dailymotion · Bluesky
+          </span>
+        )}
+      </div>
     </form>
   );
 }

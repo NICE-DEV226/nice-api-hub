@@ -1,20 +1,21 @@
 @import "tailwindcss";
 
-/* Palette mirrors docs/ and the TUI exactly: flat GitHub-dark, one blue accent,
-   colour only where it carries meaning. No gradients, no glass. */
+/* Neutral graphite dark — deliberately NOT the blue-tinted GitHub palette.
+   One blue accent (#58a6ff, the nah brand) carries all the colour.
+   Faint scanlines give the terminal texture without gradients. */
 @theme {
-  --color-ink: #0d1117;
-  --color-panel: #161b22;
-  --color-panel-2: #21262d;
-  --color-edge: #30363d;
-  --color-edge-soft: #21262d;
-  --color-term: #010409;
-  --color-fog: #8b949e;
-  --color-mist: #c9d1d9;
-  --color-snow: #e6edf3;
+  --color-ink: #0a0a0b;
+  --color-panel: #131316;
+  --color-panel-2: #1c1c21;
+  --color-edge: #2b2b32;
+  --color-edge-soft: #1f1f24;
+  --color-term: #050506;
+  --color-fog: #8b8b96;
+  --color-mist: #c9c9d1;
+  --color-snow: #f2f2f4;
   --color-accent: #58a6ff;
   --color-accent-dim: #1f6feb;
-  --color-accent-soft: #13233b;
+  --color-accent-soft: #141b26;
   --color-mint: #3fb950;
   --color-amber: #d29922;
   --color-rose: #f85149;
@@ -28,7 +29,14 @@ html {
 }
 
 body {
-  background: var(--color-ink);
+  background-color: var(--color-ink);
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.014) 0px,
+    rgba(255, 255, 255, 0.014) 1px,
+    transparent 1px,
+    transparent 3px
+  );
   color: var(--color-snow);
   font-family: var(--font-sans);
   font-size: 15px;

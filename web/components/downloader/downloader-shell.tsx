@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
 import type { DownloadLinkRequest } from "@/lib/nah-api";
 import { buildFormatChoices, type FormatChoice } from "@/lib/format-options";
@@ -84,29 +84,15 @@ export function DownloaderShell() {
       : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center px-4 pb-16 pt-10 sm:pt-16">
-      <motion.header
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8 flex flex-col items-center gap-2 text-center"
-      >
-        <span className="font-mono text-sm font-bold tracking-[0.3em] text-accent">nah</span>
-        <h1 className="text-2xl font-bold tracking-tight text-snow sm:text-3xl">
-          Paste a link. Get the file.
-        </h1>
-        <p className="max-w-md text-sm leading-relaxed text-fog">
-          Videos and audio from the platforms you already use — resolved, remuxed and
-          streamed straight to your device.
-        </p>
-      </motion.header>
+    <div className="flex w-full flex-col gap-4">
+      <LinkComposer onSubmit={resolve} busy={stage === "resolving"} />
 
-      <div className="flex w-full flex-col gap-4">
-        <LinkComposer onSubmit={resolve} busy={stage === "resolving"} />
-
-        {stage === "resolving" ? <ResolvingState /> : null}
+      <AnimatePresence mode="wait">
+        {stage === "resolving" ? <ResolvingState key="resolving" /> : null}
 
         {stage === "error" && failure ? (
           <ErrorPanel
+            key="error"
             title={failure.title}
             detail={failure.detail}
             onRetry={url ? () => resolve(url) : undefined}
@@ -114,7 +100,13 @@ export function DownloaderShell() {
         ) : null}
 
         {stage === "ready" && media ? (
-          <>
+          <motion.div
+            key="result"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col gap-4"
+          >
             <MediaSummaryCard media={media} />
             <FormatSelector choices={choices} selected={selected} onSelect={setSelected} />
             {downloadRequest && choice ? (
@@ -124,27 +116,15 @@ export function DownloaderShell() {
                 mediaPlatform={media.platform}
                 request={downloadRequest}
                 choiceLabel={choice.title}
-                onError={(title, detail, code) =>
-                  setFailure({ title, detail, code })
-                }
+                onError={(title, detail, code) => setFailure({ title, detail, code })}
               />
             ) : null}
-            {/* Surface download-time failures without leaving the ready state. */}
-            {failure ? (
-              <ErrorPanel title={failure.title} detail={failure.detail} />
-            ) : null}
-          </>
+            {failure ? <ErrorPanel title={failure.title} detail={failure.detail} /> : null}
+          </motion.div>
         ) : null}
+      </AnimatePresence>
 
-        {stage !== "resolving" ? <SessionHistory onPick={resolve} /> : null}
-      </div>
-
-      <footer className="mt-auto pt-12 text-center">
-        <p className="max-w-sm text-xs leading-relaxed text-fog/70">
-          Only download content you have the right to save. nah streams through your own
-          gateway — no accounts, no tracking, no ads.
-        </p>
-      </footer>
+      {stage !== "resolving" ? <SessionHistory onPick={resolve} /> : null}
     </div>
   );
 }

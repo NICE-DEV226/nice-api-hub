@@ -76,7 +76,7 @@ export interface Platform {
  * Why a provider attempt failed. This decides what the orchestrator does next:
  *  - `upstream` / `timeout` / `blocked` / `bad_response`: the provider's fault → count it
  *    against its circuit breaker and try the next provider.
- *  - `unavailable`: the CONTENT is gone/private → stop, do not blame the provider.
+ *  - `unavailable`: the CONTENT is gone/private or holds no downloadable media → stop, do not blame the provider.
  */
 export type FailureKind = 'upstream' | 'timeout' | 'blocked' | 'bad_response' | 'unavailable';
 

@@ -109,6 +109,7 @@ describe('classifyYtDlpFailure — real error messages', () => {
     ['ERROR: [dailymotion] x000000: Not found.', 'unavailable'],
     ['ERROR: [soundcloud] a/b: Unable to download JSON metadata: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)', 'unavailable'],
     ['ERROR: [Tumblr] 819233422280130560: No video could be found in this post', 'unavailable'],
+    ['ERROR: [Pinterest] 969822100989721871: No video formats found!; please report this issue on https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U', 'unavailable'],
     ["ERROR: [youtube] abc: Sign in to confirm you're not a bot. Use --cookies-from-browser or --cookies for the authentication.", 'blocked'],
     ['ERROR: [TikTok] 1111: Your IP address is blocked from accessing this post', 'blocked'],
     ['ERROR: [Instagram] AAAA: Instagram sent an empty media response. Check if this post is accessible in your browser', 'blocked'],

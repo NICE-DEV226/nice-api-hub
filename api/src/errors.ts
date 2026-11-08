@@ -71,7 +71,7 @@ export const errors = {
 
   unsupportedPlatform: (detail: string) => new AppError(422, 'unsupported_platform', detail),
 
-  contentUnavailable: (detail = 'The requested media is unavailable or private.') =>
+  contentUnavailable: (detail = 'The requested media is unavailable, private, or has no downloadable video.') =>
     new AppError(422, 'content_unavailable', detail),
 
   rateLimited: (

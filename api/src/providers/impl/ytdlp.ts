@@ -169,13 +169,16 @@ const BLOCKED =
   /confirm you.re not a bot|HTTP Error 429|HTTP Error 403|Too Many Requests|IP address is blocked|captcha|rate-limit|login required|empty media response|use --cookies/i;
 const GONE =
   /unavailable|private video|is private|been removed|been deleted|no longer available|No video could be found|Not found\.|HTTP Error 404|does not exist|account .*terminated|members-only|Unsupported URL/i;
+// The page resolved fine but holds no video at all (image pins, text posts…): a property of the
+// content, not of the provider — same handling as "gone".
+const NO_MEDIA = /No video formats found/i;
 
 /** Map yt-dlp's stderr to a failure kind. Order matters: "blocked" must win over "gone". */
 export function classifyYtDlpFailure(stderr: string): ProviderError {
   const line = stderr.split('\n').find((l) => l.startsWith('ERROR:')) ?? stderr.trim().split('\n').pop() ?? 'unknown error';
   const message = line.replace(/^ERROR:\s*/, '').slice(0, 300);
   if (BLOCKED.test(message)) return new ProviderError('blocked', `yt-dlp: ${message}`);
-  if (GONE.test(message)) return new ProviderError('unavailable', `yt-dlp: ${message}`);
+  if (GONE.test(message) || NO_MEDIA.test(message)) return new ProviderError('unavailable', `yt-dlp: ${message}`);
   return new ProviderError('upstream', `yt-dlp: ${message}`);
 }
 

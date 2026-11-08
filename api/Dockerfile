@@ -29,7 +29,7 @@ ENV NODE_ENV=production PORT=3000 XDG_CACHE_HOME=/tmp/.cache
 ARG YTDLP_VERSION=2026.10.26
 RUN apk add --no-cache python3 py3-pip ffmpeg ca-certificates \
  && python3 -m venv /opt/yt-dlp \
- && /opt/yt-dlp/bin/pip install --no-cache-dir "yt-dlp==${YTDLP_VERSION}" \
+ && /opt/yt-dlp/bin/pip install --no-cache-dir "yt-dlp==${YTDLP_VERSION}" bgutil-ytdlp-pot-provider \
  && ln -s /opt/yt-dlp/bin/yt-dlp /usr/local/bin/yt-dlp \
  && yt-dlp --version && ffmpeg -version | head -1
 

@@ -139,6 +139,18 @@ describe('ytDlpArgs', () => {
     expect(args).toEqual(expect.arrayContaining(['--proxy', 'http://p:1', '--cookies', '/c.txt']));
   });
 
+  it('passes the PO-token provider URL via extractor-args when configured', () => {
+    expect(ytDlpArgs({ bin: 'y', jsRuntime: 'node' }, 'https://x')).not.toContain('--extractor-args');
+    const args = ytDlpArgs({ bin: 'y', jsRuntime: 'node', potProviderUrl: 'http://pot:4416' }, 'https://x');
+    expect(args).toEqual(
+      expect.arrayContaining(['--extractor-args', 'youtubepot-bgutilhttp:base_url=http://pot:4416']),
+    );
+    const playlist = ytDlpPlaylistArgs({ bin: 'y', jsRuntime: 'node', potProviderUrl: 'http://pot:4416' }, 'https://x');
+    expect(playlist).toEqual(
+      expect.arrayContaining(['--extractor-args', 'youtubepot-bgutilhttp:base_url=http://pot:4416']),
+    );
+  });
+
   it('uses flat playlist enumeration without downloading entries', () => {
     const args = ytDlpPlaylistArgs({ bin: 'yt-dlp', jsRuntime: 'node' }, 'https://www.youtube.com/playlist?list=x');
     expect(args).toEqual(expect.arrayContaining(['--flat-playlist', '--skip-download', '--ignore-config']));

@@ -41,8 +41,8 @@ export function LinkComposer({ onSubmit, busy, initialUrl }: LinkComposerProps) 
     trimmed.length > 3 && !detected && /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed);
 
   return (
-    <form onSubmit={submit} className="w-full">
-      <div className="group flex items-center gap-2 rounded-lg border border-edge bg-panel p-2 transition-colors focus-within:border-accent/60">
+    <form onSubmit={submit} className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="group flex flex-1 items-center gap-2 rounded-lg border border-edge bg-panel p-2 transition-colors focus-within:border-accent/60">
         <span className="ml-2 shrink-0 font-mono text-sm text-mint select-none">❯</span>
         <input
           type="url"
@@ -67,16 +67,16 @@ export function LinkComposer({ onSubmit, busy, initialUrl }: LinkComposerProps) 
           <ClipboardPaste className="size-4" />
           {pasted ? "Pasted" : "Paste"}
         </button>
-        <button
-          type="submit"
-          disabled={busy || !url.trim()}
-          className="flex h-10 shrink-0 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-ink transition-all hover:bg-[#79b8ff] disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-          {busy ? "Resolving…" : "Resolve"}
-        </button>
       </div>
-      <div className="mt-3 flex min-h-5 items-center justify-center gap-2 px-1 text-xs">
+      <button
+        type="submit"
+        disabled={busy || !url.trim()}
+        className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-accent px-5 text-sm font-semibold text-ink transition-all hover:bg-[#79b8ff] disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:px-4"
+      >
+        {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+        {busy ? "Resolving…" : "Resolve"}
+      </button>
+      <div className="flex min-h-5 items-center justify-center gap-2 px-1 text-xs sm:basis-full">
         {detected ? (
           <span className="inline-flex items-center gap-1.5 rounded-md border border-mint/30 bg-mint/10 px-2.5 py-1 text-mint">
             <BrandIcon platform={detected.id} className="size-3.5" />

@@ -66,6 +66,7 @@ export function ytDlpOptionsFrom(config: Config): YtDlpOptions {
     jsRuntime: config.YTDLP_JS_RUNTIME,
     ...(config.YTDLP_COOKIES_FILE ? { cookiesFile: config.YTDLP_COOKIES_FILE } : {}),
     ...(config.YTDLP_PROXY ? { proxy: config.YTDLP_PROXY } : {}),
+    ...(config.YTDLP_POT_PROVIDER_URL ? { potProviderUrl: config.YTDLP_POT_PROVIDER_URL } : {}),
   };
 }
 

@@ -52,6 +52,8 @@ const ConfigSchema = Type.Object({
   YTDLP_COOKIES_FILE: Type.String({ default: '' }),
   /** Outbound proxy for extraction, e.g. a residential proxy when datacenter IPs are blocked. */
   YTDLP_PROXY: Type.String({ default: '' }),
+  /** bgutil PO-token HTTP provider base URL (e.g. http://pot-provider.railway.internal:4416). YouTube requires PO tokens on datacenter IPs. */
+  YTDLP_POT_PROVIDER_URL: Type.String({ default: '' }),
 
   /** GET /v1/download: the gateway fetches, merges (ffmpeg) and streams the media itself. */
   DOWNLOAD_ENABLED: Type.Boolean({ default: true }),

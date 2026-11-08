@@ -16,6 +16,8 @@ export interface YtDlpOptions {
   jsRuntime: string;
   cookiesFile?: string;
   proxy?: string;
+  /** bgutil PO-token HTTP provider base URL; YouTube requires PO tokens on datacenter IPs. */
+  potProviderUrl?: string;
 }
 
 interface Format {
@@ -182,6 +184,12 @@ export function classifyYtDlpFailure(stderr: string): ProviderError {
   return new ProviderError('upstream', `yt-dlp: ${message}`);
 }
 
+function potArgs(opts: YtDlpOptions): string[] {
+  return opts.potProviderUrl
+    ? ['--extractor-args', `youtubepot-bgutilhttp:base_url=${opts.potProviderUrl}`]
+    : [];
+}
+
 export function ytDlpArgs(opts: YtDlpOptions, url: string): string[] {
   const args = [
     '-J',
@@ -193,6 +201,7 @@ export function ytDlpArgs(opts: YtDlpOptions, url: string): string[] {
     '15',
     '--js-runtimes',
     opts.jsRuntime,
+    ...potArgs(opts),
   ];
   if (opts.cookiesFile) args.push('--cookies', opts.cookiesFile);
   if (opts.proxy) args.push('--proxy', opts.proxy);
@@ -211,6 +220,7 @@ export function ytDlpPlaylistArgs(opts: YtDlpOptions, url: string): string[] {
     '15',
     '--js-runtimes',
     opts.jsRuntime,
+    ...potArgs(opts),
   ];
   if (opts.cookiesFile) args.push('--cookies', opts.cookiesFile);
   if (opts.proxy) args.push('--proxy', opts.proxy);

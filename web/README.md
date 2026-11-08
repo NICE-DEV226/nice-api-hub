@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# nah — web downloader
 
-## Getting Started
+Public, single-page media downloader: paste a link, pick a format, download.
+Designed for phones and desktops. Built with Next.js 16 + Tailwind v4.
 
-First, run the development server:
+## How it works
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+browser ──POST /api/media/resolve──▶ Next.js route ──GET /v1/media────────▶ nah API (Railway)
+browser ◀──media JSON (small)──────┘                                        │
+browser ──POST /api/media/download-link─▶ Next.js route ──POST /v1/download-links▶ API
+browser ◀──{ url: "https://api…/v1/file?t=…" }──┘                            │
+browser ──GET signed URL──────────────────────────────────────────────────▶ API streams bytes
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- The shared API key lives only in server-side route handlers (`lib/nah-api.ts`,
+  marked `server-only`). It is never exposed to the browser.
+- File bytes go **directly from the API to the browser** via short-lived HMAC
+  grants (`/v1/file?t=…`, 15 min TTL) — nothing large passes through Vercel.
+- Recent downloads are stored in `localStorage` on the device only.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Where | Purpose |
+| --- | --- | --- |
+| `NAH_API_URL` | Vercel | Base URL of the nah API, e.g. `https://nah-api.up.railway.app` |
+| `NAH_API_KEY` | Vercel | Shared server-side API key (`nah_live_…`) with `media` scope |
 
-## Learn More
+The API must have `DOWNLOAD_ENABLED=true` (default) and include the
+`/v1/download-links` + `/v1/file` routes (see `api/src/http/app.ts`).
 
-To learn more about Next.js, take a look at the following resources:
+## Local development
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+cp .env.example .env.local   # set NAH_API_URL + NAH_API_KEY
+npm install
+npm run dev                  # http://localhost:3000
+```
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Import the repository in Vercel, set **Root Directory** to `web/`.
+2. Add the two environment variables above (Production + Preview).
+3. Deploy. The two `/api/media/*` routes are serverless functions; the page
+   itself is static.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploy the API on Railway
+
+The API ships its own `api/Dockerfile` (Node + Python + yt-dlp + ffmpeg).
+
+1. Create a Railway service from this repo. The Dockerfile builds with **`api/` as
+   the Docker build context** (`api/Dockerfile`, same as `api/compose.yaml`).
+2. Required env vars: `DATABASE_URL`, `REDIS_URL`, `KEY_PEPPER`,
+   `POSTGRES_PASSWORD`-backed services (Postgres + Redis plugins), `ADMIN_TOKEN`.
+3. Note the public HTTPS URL Railway assigns → that is `NAH_API_URL`.
+
+## Scripts
+
+```bash
+npm run dev      # dev server (Turbopack)
+npm run build    # production build
+npm run start    # serve the production build
+npm run lint     # eslint
+```

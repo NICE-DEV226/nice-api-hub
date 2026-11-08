@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { History } from "lucide-react";
 
-import { listRecents, type RecentDownload } from "@/lib/session-recents";
+import { EMPTY_RECENTS, getRecentSnapshot, subscribeRecents } from "@/lib/session-recents";
 
 interface SessionHistoryProps {
   onPick: (url: string) => void;
@@ -21,11 +21,7 @@ function timeAgo(at: number): string {
 
 /** Session-local recent downloads (localStorage only — nothing leaves the device). */
 export function SessionHistory({ onPick }: SessionHistoryProps) {
-  const [items, setItems] = useState<RecentDownload[]>([]);
-
-  useEffect(() => {
-    setItems(listRecents());
-  }, []);
+  const items = useSyncExternalStore(subscribeRecents, getRecentSnapshot, () => EMPTY_RECENTS);
 
   if (items.length === 0) return null;
 

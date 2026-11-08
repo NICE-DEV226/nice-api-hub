@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { CheckCircle2, Download, Loader2 } from "lucide-react";
 
 import type { DownloadLinkRequest } from "@/lib/nah-api";
-import { pushRecent, type RecentDownload } from "@/lib/session-recents";
+import { pushRecent } from "@/lib/session-recents";
 
 interface DownloadButtonProps {
   mediaUrl: string;

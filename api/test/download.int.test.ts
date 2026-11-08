@@ -236,6 +236,59 @@ describe.skipIf(!hasInfra || !hasFfmpeg)('GET /v1/download (real ffmpeg, real st
     expect(received).toBeLessThan(3 * 1024 * 1024);
   });
 
+  it('mints a signed download link that streams the file without an API key', async () => {
+    const a = await app();
+    const mint = await a.inject({
+      method: 'POST',
+      url: '/v1/download-links',
+      headers: { authorization: `Bearer ${key}` },
+      payload: { url: tiktok('2'), kind: 'video' },
+    });
+    expect(mint.statusCode).toBe(200);
+    const { url, expiresAt } = mint.json() as { url: string; expiresAt: string };
+    expect(url).toMatch(/^\/v1\/file\?t=.+\..+$/);
+    expect(Date.parse(expiresAt)).toBeGreaterThan(Date.now());
+
+    const file = await a.inject({ method: 'GET', url });
+    expect(file.statusCode).toBe(200);
+    expect(file.headers['content-disposition']).toContain('.mp4');
+    expect(Buffer.compare(file.rawPayload, files.complete)).toBe(0);
+  });
+
+  it('binds the grant to its parameters: tampering or expiry is rejected', async () => {
+    const a = await app();
+    const mint = await a.inject({
+      method: 'POST',
+      url: '/v1/download-links',
+      headers: { authorization: `Bearer ${key}` },
+      payload: { url: tiktok('2') },
+    });
+    const { url } = mint.json() as { url: string };
+    const token = new URL(`http://x${url}`).searchParams.get('t')!;
+    const [payload, sig] = token.split('.') as [string, string];
+
+    // Same signature, different payload → signature no longer matches.
+    const swapped = Buffer.from(
+      JSON.stringify({ keyId: 'k', accountId: 'a', url: tiktok('1'), kind: 'video', exp: Math.floor(Date.now() / 1000) + 600 }),
+    ).toString('base64url');
+    expect((await a.inject({ method: 'GET', url: `/v1/file?t=${swapped}.${sig}` })).statusCode).toBe(401);
+
+    // Garbage and missing token.
+    expect((await a.inject({ method: 'GET', url: '/v1/file?t=not-a-grant' })).statusCode).toBe(401);
+    expect((await a.inject({ method: 'GET', url: '/v1/file' })).statusCode).toBe(400);
+    expect(payload.length).toBeGreaterThan(0);
+  });
+
+  it('requires an API key to mint a download link', async () => {
+    const a = await app();
+    const res = await a.inject({
+      method: 'POST',
+      url: '/v1/download-links',
+      payload: { url: tiktok('2') },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
   it('limits concurrent transfers (503 + Retry-After) and frees the slot when the client leaves', async () => {
     const a = await app({ DOWNLOAD_MAX_CONCURRENCY: '1' });
     await a.listen({ port: 0, host: '127.0.0.1' });

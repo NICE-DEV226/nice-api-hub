@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Ajv } from 'ajv';
 import addFormatsModule from 'ajv-formats';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
@@ -33,6 +33,7 @@ import { assertPublicHttpUrl } from '../download/urlGuard.js';
 import { JobStore, type Job } from '../jobs/jobStore.js';
 import { JobRunner, toPublicJob } from '../jobs/runner.js';
 import { adminRoutes } from './adminRoutes.js';
+import { DOWNLOAD_GRANT_TTL_SECONDS, signDownloadGrant, verifyDownloadGrant } from './downloadToken.js';
 import { registerKeyRoutes, registerPublicRoutes } from './deviceRoutes.js';
 import { requireScope, type Scope } from '../gateway/scopes.js';
 import { loadThumbnail, rememberThumbnail } from './thumbnails.js';
@@ -195,6 +196,58 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
         },
       })
     : null;
+
+  /**
+   * Shared download streamer used by both `/v1/download` (API key) and `/v1/file`
+   * (signed grant). `principal` is null for grant requests: the platform check already
+   * ran when the grant was minted, and the grant binds the exact parameters.
+   */
+  async function serveDownload(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    q: { url: string; kind?: 'video' | 'audio'; maxHeight?: number; audioFormat?: 'original' | 'mp3' },
+    principal: Principal | null,
+  ) {
+    if (!config.DOWNLOAD_ENABLED) throw errors.notFound('Downloads are disabled on this deployment.');
+    const target = resolveTarget(q.url, registry.availablePlatforms());
+    req.usage = { platform: target.platform.id, cacheHit: false };
+    if (principal?.platforms && !principal.platforms.includes(target.platform.id)) {
+      throw errors.forbidden('platform_not_allowed', `Your plan/key does not include "${target.platform.id}".`);
+    }
+
+    // Resolve first: a slow provider failover must not hold a download slot.
+    const { media, cached } = await mediaService.resolve(target);
+    req.usage.cacheHit = cached;
+
+    const release = downloadSlots.tryAcquire();
+    if (!release) throw errors.overloaded(5);
+    try {
+      const plan = planDownload(media.variants, {
+        kind: q.kind ?? 'video',
+        maxHeight: q.maxHeight,
+        audioFormat: q.audioFormat,
+      });
+      const opened = await openDownload(plan, {
+        ffmpegPath: config.FFMPEG_PATH,
+        maxBytes: config.DOWNLOAD_MAX_BYTES,
+        maxSeconds: config.DOWNLOAD_MAX_SECONDS,
+        allowPrivateHosts: config.DOWNLOAD_ALLOW_PRIVATE_HOSTS,
+      });
+
+      req.raw.on('close', opened.dispose);
+      opened.stream.on('close', release);
+      opened.stream.on('error', (error) => req.log.warn({ err: error }, 'download stream failed'));
+      reply
+        .header('content-type', opened.contentType)
+        .header('content-disposition', contentDisposition(safeFilename(media.title, plan.extension)))
+        .header('x-download-provider', media.provider);
+      if (opened.contentLength !== undefined) reply.header('content-length', String(opened.contentLength));
+      return reply.send(opened.stream);
+    } catch (error) {
+      release();
+      throw error;
+    }
+  }
 
   app.decorateRequest('principal', null);
   app.decorateRequest('usage', null);
@@ -568,47 +621,57 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
           },
         },
       },
-      async (req, reply) => {
+      async (req, reply) => serveDownload(req, reply, req.query, req.principal!),
+    );
+
+    scoped.post(
+      '/v1/download-links',
+      {
+        schema: {
+          tags: ['Media'],
+          summary: 'Mint a short-lived signed download URL',
+          description:
+            'Returns a `/v1/file?t=…` URL that streams the media without an API key. ' +
+            'Use this when the file bytes must reach a client that cannot hold the shared key ' +
+            '(e.g. a browser downloading directly). The link is bound to these exact parameters ' +
+            'and expires after 15 minutes. Counts against your rate limit like any request.',
+          security: [{ apiKey: [] }],
+          body: Type.Object({
+            url: Type.String({ minLength: 1, maxLength: 2048 }),
+            kind: Type.Optional(Type.Union([Type.Literal('video'), Type.Literal('audio')], { default: 'video' })),
+            maxHeight: Type.Optional(Type.Integer({ minimum: 1, maximum: 8640 })),
+            audioFormat: Type.Optional(Type.Union([Type.Literal('original'), Type.Literal('mp3')])),
+          }),
+          response: {
+            200: Type.Object({
+              url: Type.String(),
+              expiresAt: Type.String(),
+            }),
+            403: Type.Ref(ProblemSchema),
+            422: Type.Ref(ProblemSchema),
+            503: Type.Ref(ProblemSchema),
+          },
+        },
+      },
+      async (req) => {
         if (!config.DOWNLOAD_ENABLED) throw errors.notFound('Downloads are disabled on this deployment.');
         const principal = req.principal!;
-        const target = resolveTarget(req.query.url, registry.availablePlatforms());
+        const target = resolveTarget(req.body.url, registry.availablePlatforms());
         req.usage = { platform: target.platform.id, cacheHit: false };
         if (principal.platforms && !principal.platforms.includes(target.platform.id)) {
           throw errors.forbidden('platform_not_allowed', `Your plan/key does not include "${target.platform.id}".`);
         }
-
-        // Resolve first: a slow provider failover must not hold a download slot.
-        const { media, cached } = await mediaService.resolve(target);
-        req.usage.cacheHit = cached;
-
-        const release = downloadSlots.tryAcquire();
-        if (!release) throw errors.overloaded(5);
-        try {
-          const plan = planDownload(media.variants, {
-            kind: req.query.kind,
-            maxHeight: req.query.maxHeight,
-            audioFormat: req.query.audioFormat,
-          });
-          const opened = await openDownload(plan, {
-            ffmpegPath: config.FFMPEG_PATH,
-            maxBytes: config.DOWNLOAD_MAX_BYTES,
-            maxSeconds: config.DOWNLOAD_MAX_SECONDS,
-            allowPrivateHosts: config.DOWNLOAD_ALLOW_PRIVATE_HOSTS,
-          });
-
-          req.raw.on('close', opened.dispose);
-          opened.stream.on('close', release);
-          opened.stream.on('error', (error) => req.log.warn({ err: error }, 'download stream failed'));
-          reply
-            .header('content-type', opened.contentType)
-            .header('content-disposition', contentDisposition(safeFilename(media.title, plan.extension)))
-            .header('x-download-provider', media.provider);
-          if (opened.contentLength !== undefined) reply.header('content-length', String(opened.contentLength));
-          return reply.send(opened.stream);
-        } catch (error) {
-          release();
-          throw error;
-        }
+        const exp = Math.floor(Date.now() / 1000) + DOWNLOAD_GRANT_TTL_SECONDS;
+        const token = signDownloadGrant(config.KEY_PEPPER, {
+          keyId: principal.keyId,
+          accountId: principal.accountId,
+          url: req.body.url,
+          kind: req.body.kind ?? 'video',
+          ...(req.body.maxHeight !== undefined ? { maxHeight: req.body.maxHeight } : {}),
+          ...(req.body.audioFormat !== undefined ? { audioFormat: req.body.audioFormat } : {}),
+          exp,
+        });
+        return { url: `/v1/file?t=${encodeURIComponent(token)}`, expiresAt: new Date(exp * 1000).toISOString() };
       },
     );
 
@@ -770,6 +833,43 @@ export async function buildApp(deps: AppDeps): Promise<BuiltApp> {
       },
     );
   });
+
+  // ---- public: redeem a signed download grant ---------------------------------
+  // Registered on `app` (not inside the v1 scope) so the API-key hook does not run:
+  // the grant itself is the credential. All download safety (SSRF guard, slots,
+  // streaming limits) still applies inside serveDownload.
+
+  app.get(
+    '/v1/file',
+    {
+      schema: {
+        tags: ['Media'],
+        summary: 'Stream a file via a signed download grant',
+        description:
+          'Public endpoint: the `t` parameter is a short-lived HMAC grant minted by ' +
+          'POST /v1/download-links. The grant binds the URL and download parameters, ' +
+          'so it cannot be modified to fetch anything else.',
+        querystring: Type.Object({ t: Type.String({ minLength: 1, maxLength: 4096 }) }),
+        response: {
+          200: { description: 'The media file', type: 'string', format: 'binary' },
+          401: Type.Ref(ProblemSchema),
+          422: Type.Ref(ProblemSchema),
+          502: Type.Ref(ProblemSchema),
+          503: Type.Ref(ProblemSchema),
+        },
+      },
+    },
+    async (req, reply) => {
+      const grant = verifyDownloadGrant(config.KEY_PEPPER, (req.query as { t: string }).t);
+      if (!grant) throw errors.unauthorized('This download link is invalid or has expired.');
+      return serveDownload(
+        req,
+        reply,
+        { url: grant.url, kind: grant.kind, maxHeight: grant.maxHeight, audioFormat: grant.audioFormat },
+        null,
+      );
+    },
+  );
 
   await app.register(adminRoutes, { prefix: '/admin/v1', adminToken: config.ADMIN_TOKEN, accounts });
 

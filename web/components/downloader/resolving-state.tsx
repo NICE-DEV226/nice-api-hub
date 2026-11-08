@@ -13,7 +13,7 @@ export function ResolvingState() {
       aria-live="polite"
     >
       <div className="flex gap-4">
-        <div className="size-28 shrink-0 animate-pulse rounded-md bg-panel-2 sm:size-36" />
+        <div className="size-24 shrink-0 animate-pulse rounded-md bg-panel-2 sm:size-36" />
         <div className="flex min-w-0 flex-1 flex-col gap-3 py-1">
           <div className="h-4 w-3/4 animate-pulse rounded bg-panel-2" />
           <div className="h-3 w-1/2 animate-pulse rounded bg-panel-2" />

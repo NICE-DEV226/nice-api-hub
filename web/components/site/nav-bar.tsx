@@ -18,15 +18,17 @@ export function NavBar() {
           nah
         </Link>
         <div className="flex items-center gap-1 sm:gap-2">
-          {LINKS.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              className="rounded-lg px-3 py-1.5 text-sm text-fog transition-colors hover:bg-panel-2 hover:text-snow"
-            >
-              {l.label}
-            </a>
-          ))}
+          <div className="hidden items-center gap-1 sm:flex">
+            {LINKS.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                className="rounded-lg px-3 py-1.5 text-sm text-fog transition-colors hover:bg-panel-2 hover:text-snow"
+              >
+                {l.label}
+              </a>
+            ))}
+          </div>
           <a
             href="https://github.com/NICE-DEV226/nice-api-hub"
             target="_blank"

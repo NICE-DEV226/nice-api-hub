@@ -26,6 +26,7 @@
 
 html {
   color-scheme: dark;
+  overflow-x: clip;
 }
 
 body {
